@@ -21,8 +21,8 @@ typedef float f32;
 typedef double f64;
 
 typedef struct {
-    u64 size;
-    u64 position;
+    size_t size;
+    size_t position;
     max_align_t memory;
 } Arena;
 
@@ -33,8 +33,8 @@ void* allocate_impl(Arena* arena, u32 size, u32 alignment);
 #define allocate_n(arena, T, n) allocate_impl(arena, sizeof(T) * n, alignof(T))
 
 typedef struct {
-    u64 length;
-    u64 append;
+    size_t length;
+    size_t append;
     max_align_t data;
 } Vector;
 
@@ -43,11 +43,11 @@ Vector* get_vector(void* v);
 
 #define make_vector(arena, T, n) make_vector_impl(arena, sizeof(T), n)
 #define append(v, x) v[get_vector(v)->append++] = x
-#define foreach(T, v) for (T* it = v; (u64){ it - v } < get_vector(v)->length; ++it)
+#define foreach(T, v) for (T* it = v; (size_t){ it - v } < get_vector(v)->length; ++it)
 
 typedef struct {
     char* data;
-    u64 length;
+    size_t length;
 } String;
 
 // TODO: fmt
@@ -74,6 +74,8 @@ void println(String string);
 
 Arena* make_arena(u32 size) {
     Arena* arena = malloc(sizeof(Arena) - sizeof(max_align_t) + size);
+
+    assert(arena != NULL);
 
     arena->size = size;
     arena->position = 0;
@@ -156,9 +158,9 @@ String* split_string(Arena* arena, String string, char separator) {
     u32 separator_count = count_characters(string, separator);
     String* strings = make_vector(arena, String, separator_count + 1);
 
-    u64 position = 0;
+    size_t position = 0;
 
-    for (u64 i = 0; i < string.length; ++i) {
+    for (size_t i = 0; i < string.length; ++i) {
         if (string.data[i] == separator) {
             append(strings, ((String){ string.data + position, i - position }));
             position = i + 1;
@@ -184,7 +186,7 @@ String join_strings(Arena* arena, String separator, String* strings) {
 
     string.data = allocate_n(arena, char, string.length);
 
-    u64 position = 0;
+    size_t position = 0;
 
     foreach(String, strings) {
         memcpy(string.data + position, it->data, it->length);
@@ -208,9 +210,9 @@ bool substring(String this, String other) {
     if (other.length > this.length)
         return false;
 
-    u64 match = 0;
+    size_t match = 0;
 
-    for (u64 i = 0; i < this.length; ++i) {
+    for (size_t i = 0; i < this.length; ++i) {
         if (this.data[i] == other.data[match]) {
             ++match;
         } else {
@@ -227,7 +229,7 @@ bool substring(String this, String other) {
 u32 count_characters(String string, char character) {
     u32 count = 0;
 
-    for (u64 i = 0; i < string.length; ++i) {
+    for (size_t i = 0; i < string.length; ++i) {
         if (string.data[i] == character)
             ++count;
     }
