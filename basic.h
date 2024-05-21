@@ -49,7 +49,6 @@ typedef struct {
     size_t length;
 } String;
 
-// TODO: fmt
 String read_file(Arena* arena, String file);
 String append_string(Arena* arena, String this, String other);
 String* split_string(Arena* arena, String string, char separator);
@@ -58,11 +57,9 @@ bool string_equals(String this, String other);
 bool substring(String this, String other);
 u32 count_characters(String string, char character);
 char* cstr(Arena* arena, String string);
-void println(String string);
+void println(String string, ...);
 String fmt(Arena* arena, String format, ...);
 String s(char* c_string);
-
-#define printfmt(arena, format, ...) println(fmt(arena, format, __VA_ARGS__))
 
 #endif
 
@@ -87,11 +84,12 @@ Arena* make_arena(u32 size) {
 }
 
 void* allocate_impl(Arena* arena, u32 size, u32 alignment) {
-    arena->position += arena->position % alignment;
+    if (arena->position % alignment != 0)
+        arena->position += (alignment - (arena->position % alignment));
 
     assert(arena->position + size <= arena->size);
 
-    void* address = &arena->memory + arena->position;
+    void* address = (void*){ &arena->memory } + arena->position;
 
     arena->position += size;
 
@@ -250,33 +248,62 @@ char* cstr(Arena* arena, String string) {
     return new;
 }
 
-void println(String string) {
-    assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
-    assert(write(STDOUT_FILENO, "\n", 1) >= 0);
+void println(String string, ...) {
+    if (count_characters(string, '%') == 0) { // FIXME: plain % impossible
+        assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
+        assert(write(STDOUT_FILENO, "\n", 1) >= 0);
+    } else { // FIXME: repeated code (internal vs external arena)
+        Arena* cstr_arena = make_arena(string.length + 1);
+        char* format_cstr = cstr(cstr_arena, string);
+
+        va_list args_len, args_fmt;
+        va_start(args_len, string);
+        va_copy(args_fmt, args_len);
+
+        size_t length = vsnprintf(NULL, 0, format_cstr, args_len);
+
+        va_end(args_len);
+
+        Arena* format_arena = make_arena(length + 1);
+
+        String format = {
+            .data = allocate_n(format_arena, char, length + 1),
+            .length = length
+        };
+
+        vsnprintf(format.data, format.length + 1, format_cstr, args_fmt);
+
+        va_end(args_fmt);
+        free(cstr_arena);
+
+        assert(write(STDOUT_FILENO, format.data, format.length) >= 0);
+        assert(write(STDOUT_FILENO, "\n", 1) >= 0);
+
+        free(format_arena);
+    }
 }
 
 String fmt(Arena* arena, String format, ...) {
-    Arena* scratch = make_arena(format.length + 1);
-    char* format_cstr = cstr(scratch, format);
+    Arena* cstr_arena = make_arena(format.length + 1);
+    char* format_cstr = cstr(cstr_arena, format);
 
-    va_list args1, args2; // Cannot reuse va_list
-
-    va_start(args1, format);
-    va_copy(args2, args1);
+    va_list args_len, args_fmt; // Cannot reuse va_list
+    va_start(args_len, format);
+    va_copy(args_fmt, args_len);
 
     String string = {
-        .length = vsnprintf(NULL, 0, format_cstr, args1)
+        .length = vsnprintf(NULL, 0, format_cstr, args_len)
     };
 
-    va_end(args1);
+    va_end(args_len);
 
-    string.data = allocate(arena, string.length + 1); // '\0'
+    string.data = allocate_n(arena, char, string.length + 1); // '\0'
 
-    vsnprintf(string.data, string.length + 1, format_cstr, args2);
+    vsnprintf(string.data, string.length + 1, format_cstr, args_fmt);
 
-    va_end(args2);
+    va_end(args_fmt);
 
-    free(scratch);
+    free(cstr_arena);
 
     return string;
 }

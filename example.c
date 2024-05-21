@@ -14,7 +14,7 @@ int main(void) {
 
     *d = 12.0;
 
-    printfmt(arena, s("Hello, World! %d %.2f"), *n, *d);
+    println(s("Hello, World! %d %.2f"), *n, *d);
 
     int* vec = make_vector(arena, int, 4);
 
@@ -23,7 +23,7 @@ int main(void) {
     }
 
     foreach(int, vec) {
-        printfmt(arena, s("%d"), *it);
+        println(s("%d"), *it);
     }
 
     int* vec2 = make_vector(arena, int, 4);
@@ -34,10 +34,10 @@ int main(void) {
     append(vec2, 8);
 
     foreach(int, vec2) {
-        printfmt(arena, s("%d"), *it);
+        println(s("%d"), *it);
     }
 
-    println(read_file(arena, s("example.c")));
+    println(read_file(arena, s("LICENSE")));
 
     println(append_string(arena, s("Hello,"), s("World!")));
 
@@ -54,9 +54,9 @@ int main(void) {
         println(*it);
     }
 
-    printfmt(arena, s("Contains: %d"), substring(s("Hello World"), s("Hello")));
-    printfmt(arena, s("Contains: %d"), substring(s("Hello World"), s("World")));
-    printfmt(arena, s("Contains: %d"), substring(s("Hello World"), s("Word")));
+    println(s("Contains: %d"), substring(s("Hello World"), s("Hello")));
+    println(s("Contains: %d"), substring(s("Hello World"), s("World")));
+    println(s("Contains: %d"), substring(s("Hello World"), s("Word")));
 
     free(arena);
 
