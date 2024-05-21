@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdalign.h>
-#include <string.h>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -60,8 +59,10 @@ bool substring(String this, String other);
 u32 count_characters(String string, char character);
 char* cstr(Arena* arena, String string);
 void println(String string);
+String fmt(Arena* arena, String format, ...);
+String s(char* c_string);
 
-#define s(cstr) (String){ .data = cstr, .length = strlen(cstr) }
+#define printfmt(arena, format, ...) println(fmt(arena, format, __VA_ARGS__))
 
 #endif
 
@@ -69,6 +70,8 @@ void println(String string);
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include <string.h>
 #include <assert.h>
 #include <unistd.h>
 
@@ -112,7 +115,7 @@ Vector* get_vector(void* v) {
 }
 
 String read_file(Arena* arena, String file) {
-    Arena* scratch = make_arena(255);
+    Arena* scratch = make_arena(file.length + 1);
 
     char* file_cstr = cstr(scratch, file);
 
@@ -250,6 +253,39 @@ char* cstr(Arena* arena, String string) {
 void println(String string) {
     assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
     assert(write(STDOUT_FILENO, "\n", 1) >= 0);
+}
+
+String fmt(Arena* arena, String format, ...) {
+    Arena* scratch = make_arena(format.length + 1);
+    char* format_cstr = cstr(scratch, format);
+
+    va_list args1, args2; // Cannot reuse va_list
+
+    va_start(args1, format);
+    va_copy(args2, args1);
+
+    String string = {
+        .length = vsnprintf(NULL, 0, format_cstr, args1)
+    };
+
+    va_end(args1);
+
+    string.data = allocate(arena, string.length + 1); // '\0'
+
+    vsnprintf(string.data, string.length + 1, format_cstr, args2);
+
+    va_end(args2);
+
+    free(scratch);
+
+    return string;
+}
+
+String s(char* c_string) {
+    return (String) {
+        .data = c_string,
+        .length = strlen(c_string)
+    };
 }
 
 #endif

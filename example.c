@@ -4,7 +4,7 @@
 #include "basic.h"
 
 int main(void) {
-    Arena* arena = make_arena(16);
+    Arena* arena = make_arena(2048);
 
     int* n = allocate(arena, int);
 
@@ -14,11 +14,7 @@ int main(void) {
 
     *d = 12.0;
 
-    printf("Hello, World! %d %.2f\n", *n, *d);
-
-    free(arena);
-
-    arena = make_arena(64);
+    printfmt(arena, s("Hello, World! %d %.2f"), *n, *d);
 
     int* vec = make_vector(arena, int, 4);
 
@@ -27,7 +23,7 @@ int main(void) {
     }
 
     foreach(int, vec) {
-        printf("%d\n", *it);
+        printfmt(arena, s("%d"), *it);
     }
 
     int* vec2 = make_vector(arena, int, 4);
@@ -38,14 +34,10 @@ int main(void) {
     append(vec2, 8);
 
     foreach(int, vec2) {
-        printf("%d\n", *it);
+        printfmt(arena, s("%d"), *it);
     }
 
-    free(arena);
-
-    arena = make_arena(2048);
-
-    //println(read_file(arena, s("main.c")));
+    println(read_file(arena, s("example.c")));
 
     println(append_string(arena, s("Hello,"), s("World!")));
 
@@ -62,11 +54,11 @@ int main(void) {
         println(*it);
     }
 
-    free(arena);
+    printfmt(arena, s("Contains: %d"), substring(s("Hello World"), s("Hello")));
+    printfmt(arena, s("Contains: %d"), substring(s("Hello World"), s("World")));
+    printfmt(arena, s("Contains: %d"), substring(s("Hello World"), s("Word")));
 
-    printf("Contains: %d\n", substring(s("Hello World"), s("Hello")));
-    printf("Contains: %d\n", substring(s("Hello World"), s("World")));
-    printf("Contains: %d\n", substring(s("Hello World"), s("Word")));
+    free(arena);
 
     return 0;
 }
