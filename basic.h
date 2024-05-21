@@ -39,6 +39,7 @@ typedef struct {
 
 void* make_vector_impl(Arena* arena, u32 type_size, u32 length);
 Vector* get_vector(void* v);
+u32 vector_length(void* v);
 
 #define make_vector(arena, T, n) make_vector_impl(arena, sizeof(T), n)
 #define append(v, x) v[get_vector(v)->append++] = x
@@ -49,17 +50,17 @@ typedef struct {
     size_t length;
 } String;
 
-String read_file(Arena* arena, String file);
+bool string_equals(String this, String other);
 String append_string(Arena* arena, String this, String other);
 String* split_string(Arena* arena, String string, char separator);
 String join_strings(Arena* arena, String separator, String* strings);
-bool string_equals(String this, String other);
 bool substring(String this, String other);
 u32 count_characters(String string, char character);
 char* cstr(Arena* arena, String string);
+String s(char* c_string);
+String read_file(Arena* arena, String path);
 void println(String string, ...);
 String fmt(Arena* arena, String format, ...);
-String s(char* c_string);
 
 #endif
 
@@ -89,7 +90,7 @@ void* allocate_impl(Arena* arena, u32 size, u32 alignment) {
 
     assert(arena->position + size <= arena->size);
 
-    void* address = (void*){ &arena->memory } + arena->position;
+    void* address = (char*){ (void*) &arena->memory } + arena->position;
 
     arena->position += size;
 
@@ -112,34 +113,15 @@ Vector* get_vector(void* v) {
     return (void*){ (char*){ v } - offsetof(Vector, data) };
 }
 
-String read_file(Arena* arena, String file) {
-    Arena* scratch = make_arena(file.length + 1);
+u32 vector_length(void* v) {
+    return get_vector(v)->length;
+}
 
-    char* file_cstr = cstr(scratch, file);
+bool string_equals(String this, String other) {
+    if (this.length != other.length)
+        return false;
 
-    FILE* f = fopen(file_cstr, "rb");
-
-    free(scratch);
-
-    assert(f);
-
-    assert(fseek(f, 0, SEEK_END) >= 0);
-
-    String string = {
-        .length = ftell(f)
-    };
-
-    assert(fseek(f, 0, SEEK_SET) >= 0);
-
-    string.data = allocate_n(arena, char, string.length);
-
-    fread(string.data, 1, string.length, f);
-
-    assert(ferror(f) == 0);
-
-    fclose(f);
-
-    return string;
+    return memcmp(this.data, other.data, this.length) == 0;
 }
 
 String append_string(Arena* arena, String this, String other) {
@@ -203,10 +185,6 @@ String join_strings(Arena* arena, String separator, String* strings) {
     return string;
 }
 
-bool string_equals(String this, String other) {
-    return memcmp(this.data, other.data, this.length) == 0;
-}
-
 bool substring(String this, String other) {
     if (other.length > this.length)
         return false;
@@ -214,11 +192,10 @@ bool substring(String this, String other) {
     size_t match = 0;
 
     for (size_t i = 0; i < this.length; ++i) {
-        if (this.data[i] == other.data[match]) {
+        if (this.data[i] == other.data[match])
             ++match;
-        } else {
+        else
             match = this.data[i] == other.data[0] ? 1 : 0;
-        }
 
         if (match == other.length)
             return true;
@@ -248,6 +225,43 @@ char* cstr(Arena* arena, String string) {
     return new;
 }
 
+String s(char* c_string) {
+    return (String) {
+        .data = c_string,
+        .length = strlen(c_string)
+    };
+}
+
+String read_file(Arena* arena, String path) {
+    Arena* scratch = make_arena(path.length + 1);
+
+    char* path_cstr = cstr(scratch, path);
+
+    FILE* file = fopen(path_cstr, "rb");
+
+    free(scratch);
+
+    assert(file != NULL);
+
+    assert(fseek(file, 0, SEEK_END) >= 0);
+
+    String string = {
+        .length = ftell(file)
+    };
+
+    assert(fseek(file, 0, SEEK_SET) >= 0);
+
+    string.data = allocate_n(arena, char, string.length);
+
+    fread(string.data, 1, string.length, file);
+
+    assert(ferror(file) == 0);
+
+    fclose(file);
+
+    return string;
+}
+
 void println(String string, ...) {
     if (count_characters(string, '%') == 0) { // FIXME: plain % impossible
         assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
@@ -264,7 +278,7 @@ void println(String string, ...) {
 
         va_end(args_len);
 
-        Arena* format_arena = make_arena(length + 1);
+        Arena* format_arena = make_arena(length + 1); // !
 
         String format = {
             .data = allocate_n(format_arena, char, length + 1),
@@ -302,17 +316,9 @@ String fmt(Arena* arena, String format, ...) {
     vsnprintf(string.data, string.length + 1, format_cstr, args_fmt);
 
     va_end(args_fmt);
-
     free(cstr_arena);
 
     return string;
-}
-
-String s(char* c_string) {
-    return (String) {
-        .data = c_string,
-        .length = strlen(c_string)
-    };
 }
 
 #endif
