@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #define BASIC_IMPLEMENTATION
 #include "basic.h"
 
