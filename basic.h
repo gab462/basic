@@ -33,7 +33,7 @@ void* allocate_impl(Arena* arena, u32 size, u32 alignment);
 
 typedef struct {
     size_t length;
-    size_t append;
+    size_t end;
     max_align_t data;
 } Vector;
 
@@ -42,8 +42,8 @@ Vector* get_vector(void* v);
 u32 vector_length(void* v);
 
 #define make_vector(arena, T, n) make_vector_impl(arena, sizeof(T), n)
-#define append(v, x) v[get_vector(v)->append++] = x
-#define foreach(T, v) for (T* it = v; (size_t){ it - v } < get_vector(v)->length; ++it)
+#define append(v, x) v[get_vector(v)->end++] = x
+#define foreach(T, v) for (T* it = v; (u32){ it - v } < vector_length(v); ++it)
 
 typedef struct {
     char* data;
@@ -104,7 +104,7 @@ void* make_vector_impl(Arena* arena, u32 type_size, u32 length) {
                       alignof(Vector));
 
     vector->length = length;
-    vector->append = 0;
+    vector->end = 0;
 
     return &vector->data;
 }

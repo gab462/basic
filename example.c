@@ -4,9 +4,9 @@
 int main(void) {
     Arena* arena = make_arena(2048);
 
-    int* n = allocate(arena, int);
+    i32* n = allocate(arena, i32);
 
-    double* d = allocate(arena, double);
+    f64* d = allocate(arena, f64);
 
     *n = 4;
 
@@ -14,24 +14,24 @@ int main(void) {
 
     println(s("Hello, World! %d %.2f"), *n, *d);
 
-    int* vec = make_vector(arena, int, 4);
+    i32* vec = make_vector(arena, i32, 4);
 
-    for (int i = 0; i < 4; ++i) {
+    for (i32 i = 0; i < 4; ++i) {
         vec[i] = i;
     }
 
-    foreach(int, vec) {
+    foreach(i32, vec) {
         println(s("%d"), *it);
     }
 
-    int* vec2 = make_vector(arena, int, 4);
+    i32* vec2 = make_vector(arena, i32, 4);
 
     append(vec2, 5);
     append(vec2, 6);
     append(vec2, 7);
     append(vec2, 8);
 
-    foreach(int, vec2) {
+    foreach(i32, vec2) {
         println(s("%d"), *it);
     }
 
