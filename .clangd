@@ -1,0 +1,9 @@
+CompileFlags:
+  Add: [ "-std=c23", "-Wall", "-Wextra", "-Wshadow", "-pedantic" ]
+
+---
+
+If:
+  PathMatch: .*\.h
+CompileFlags:
+  Add: [ "-x", "c-header", "-DBASIC_IMPLEMENTATION"]
