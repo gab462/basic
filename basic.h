@@ -3,8 +3,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
-#include <stdalign.h>
+#include <string.h>
+#include <assert.h>
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -42,8 +42,16 @@ Vector* get_vector(void* v);
 u32 vector_length(void* v);
 
 #define make_vector(arena, T, n) make_vector_impl(arena, sizeof(T), n)
-#define append(v, x) v[get_vector(v)->end++] = x
-#define foreach(T, v) for (T* it = v; (u32){ it - v } < vector_length(v); ++it)
+#define foreach(v) for (typeof(v) it = v; (u32){ it - v } < vector_length(v); ++it)
+
+#define append(v, ...) do { \
+    typeof(*v) _new[] = { __VA_ARGS__ }; \
+    Vector* _v = get_vector(v); \
+    u32 _sz = sizeof(_new) / sizeof(*v); \
+    assert(_v->end + _sz <= _v->length); \
+    memcpy(&v[_v->end], _new, sizeof(_new)); \
+    _v->end += _sz; \
+} while (0)
 
 typedef struct {
     char* data;
@@ -56,6 +64,11 @@ String* split_string(Arena* arena, String string, char separator);
 String join_strings(Arena* arena, String separator, String* strings);
 bool substring(String this, String other);
 u32 count_characters(String string, char character);
+i32 find_character(String string, char character);
+String string_right(String string, u32 n);
+String string_left(String string, u32 n);
+String string_chop_right(String string, u32 n);
+String string_chop_left(String string, u32 n);
 char* cstr(Arena* arena, String string);
 String s(char* c_string);
 String read_file(Arena* arena, String path);
@@ -69,8 +82,6 @@ String fmt(Arena* arena, String format, ...);
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
-#include <string.h>
-#include <assert.h>
 #include <unistd.h>
 
 Arena* make_arena(u32 size) {
@@ -161,7 +172,7 @@ String join_strings(Arena* arena, String separator, String* strings) {
         .length = 0
     };
 
-    foreach(String, strings) {
+    foreach(strings) {
         string.length += it->length + separator.length;
     }
 
@@ -171,7 +182,7 @@ String join_strings(Arena* arena, String separator, String* strings) {
 
     size_t position = 0;
 
-    foreach(String, strings) {
+    foreach(strings) {
         memcpy(string.data + position, it->data, it->length);
         position += it->length;
 
@@ -213,6 +224,51 @@ u32 count_characters(String string, char character) {
     }
 
     return count;
+}
+
+i32 find_character(String string, char character) {
+    for (size_t i = 0; i < string.length; ++i) {
+        if (string.data[i] == character)
+            return i;
+    }
+
+    return -1;
+}
+
+String string_right(String string, u32 n) {
+    assert(n <= string.length);
+
+    return (String){
+        .data = string.data + string.length - n,
+        .length = n
+    };
+}
+
+String string_left(String string, u32 n) {
+    assert(n <= string.length);
+
+    return (String){
+        .data = string.data,
+        .length = n
+    };
+}
+
+String string_chop_right(String string, u32 n) {
+    assert(n <= string.length);
+
+    return (String){
+        .data = string.data,
+        .length = string.length - n
+    };
+}
+
+String string_chop_left(String string, u32 n) {
+    assert(n <= string.length);
+
+    return (String){
+        .data = string.data + n,
+        .length = string.length - n
+    };
 }
 
 char* cstr(Arena* arena, String string) {

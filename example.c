@@ -20,18 +20,15 @@ int main(void) {
         vec[i] = i;
     }
 
-    foreach(i32, vec) {
+    foreach(vec) {
         println(s("%d"), *it);
     }
 
     i32* vec2 = make_vector(arena, i32, 4);
 
-    append(vec2, 5);
-    append(vec2, 6);
-    append(vec2, 7);
-    append(vec2, 8);
+    append(vec2, 5, 6, 7, 8);
 
-    foreach(i32, vec2) {
+    foreach(vec2) {
         println(s("%d"), *it);
     }
 
@@ -40,21 +37,26 @@ int main(void) {
     println(append_string(arena, s("Hello,"), s("World!")));
 
     String* strings = make_vector(arena, String, 3);
-    append(strings, s("Hello"));
-    append(strings, s("World!"));
-    append(strings, s("Test!"));
+    append(strings, s("Hello"), s("World!"), s("Test!"));
 
     println(join_strings(arena, s(", "), strings));
 
     String* split = split_string(arena, s("Hello,World,Test"), ',');
 
-    foreach(String, split) {
+    foreach(split) {
         println(*it);
     }
 
     println(s("Contains: %d"), substring(s("Hello World"), s("Hello")));
     println(s("Contains: %d"), substring(s("Hello World"), s("World")));
     println(s("Contains: %d"), substring(s("Hello World"), s("Word")));
+
+    String hello = s("Hello");
+
+    println(string_left(hello, 2));
+    println(string_right(hello, 2));
+    println(string_chop_left(hello, 2));
+    println(string_chop_right(hello, 2));
 
     free(arena);
 
