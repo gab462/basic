@@ -3,15 +3,22 @@
 
 #include "basic.cc"
 
+#define CC "clang", "-std=c++17", "-pedantic", \
+    "-Wall", "-Wextra", "-Wshadow", \
+    "-fno-exceptions", "-fno-rtti"
+
 String pwd(Arena& arena) {
     char path[256];
     assert(getcwd(path, 256) != NULL);
 
     String string;
     string.length = strlen(path);
-    string.data = arena.allocate<const char>(string.length);
 
-    memcpy(const_cast<char*>(string.data), path, string.length);
+    char* buffer = arena.allocate<char>(string.length);
+
+    memcpy(buffer, path, string.length);
+
+    string.data = buffer;
 
     return string;
 }
@@ -53,29 +60,20 @@ void cc(Vector<String>& cmd) {
 
 void build_self(void) {
     Arena arena{1024};
-    Vector<String> cmd{arena, 12};
 
-    cc(cmd);
-    cmd.append("-o", "build");
-    cmd.append("build.cc");
-    cmd.append("-ggdb");
+    Vector<String> cmd{arena, CC, "-o", "build", "build.cc", "-ggdb"};
 
     run_command(cmd);
 
-    Vector<String> self{arena, 2};
-    self.append("./build", "example");
+    Vector<String> self{arena, "./build", "example"};
 
     run_command(self);
 }
 
 void build_example(void) {
     Arena arena{1024};
-    Vector<String> cmd{arena, 12};
 
-    cc(cmd);
-    cmd.append("-o", "example");
-    cmd.append("example.cc");
-    cmd.append("-ggdb");
+    Vector<String> cmd{arena, CC, "-o", "example", "example.cc", "-ggdb"};
 
     run_command(cmd);
 }

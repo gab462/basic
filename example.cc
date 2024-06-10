@@ -3,13 +3,9 @@
 int main(void) {
     Arena arena{2048};
 
-    i32* n = arena.allocate<i32>();
+    i32* n = arena.make<i32>(4);
 
-    f64* d = arena.allocate<f64>();
-
-    *n = 4;
-
-    *d = 12.0;
+    f64* d = arena.make<f64>(12.0);
 
     println("Hello, World! %d %.2f", *n, *d);
 

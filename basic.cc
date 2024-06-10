@@ -6,18 +6,18 @@
 #include <cstdlib>
 #include <unistd.h>
 
-typedef uint8_t u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
+using u8 = uint8_t;
+using u16 = uint16_t;
+using u32 = uint32_t;
+using u64 = uint64_t;
 
-typedef int8_t i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
+using i8 = int8_t;
+using i16 = int16_t;
+using i32 = int32_t;
+using i64 = int64_t;
 
-typedef float f32;
-typedef double f64;
+using f32 = float;
+using f64 = double;
 
 auto operator new(size_t n, void* ptr) -> void* {
     (void) n;
@@ -130,10 +130,12 @@ struct String {
 
         string.length = length + other.length;
 
-        string.data = arena.allocate<const char>(string.length);
+        char* buffer = arena.allocate<char>(string.length);
 
-        memcpy(const_cast<char*>(string.data), data, length);
-        memcpy(const_cast<char*>(string.data + length), other.data, other.length);
+        memcpy(buffer, data, length);
+        memcpy(buffer + length, other.data, other.length);
+
+        string.data = buffer;
 
         return string;
     }
@@ -157,12 +159,12 @@ struct String {
 
         for (u32 i = 0; i < length; ++i) {
             if (data[i] == separator) {
-                strings.append(String{ data + position, i - position });
+                strings.append(String{data + position, i - position});
                 position = i + 1;
             }
 
             if (i + 1 == length)
-                strings.append(String{ data + position, length - position });
+                strings.append(String{data + position, length - position});
         }
 
         return strings;
@@ -177,20 +179,22 @@ struct String {
 
         string.length -= length;
 
-        string.data = arena.allocate<const char>(string.length);
+        char* buffer = arena.allocate<char>(string.length);
 
         u32 position = 0;
 
         for (auto& it: strings) {
-            memcpy(const_cast<char*>(string.data) + position, it.data, it.length);
+            memcpy(buffer + position, it.data, it.length);
             position += it.length;
 
             if (position < string.length) {
                 // Also copy separator
-                memcpy(const_cast<char*>(string.data) + position, data, length);
+                memcpy(buffer + position, data, length);
                 position += length;
             }
         }
+
+        string.data = buffer;
 
         return string;
     }
@@ -258,13 +262,15 @@ auto read_file(Arena& arena, String path) -> String {
 
     assert(fseek(file, 0, SEEK_SET) >= 0);
 
-    string.data = arena.allocate<char>(string.length);
+    char* buffer = arena.allocate<char>(string.length);
 
-    fread(const_cast<char*>(string.data), 1, string.length, file);
+    fread(buffer, 1, string.length, file);
 
     assert(ferror(file) == 0);
 
     fclose(file);
+
+    string.data = buffer;
 
     return string;
 }
@@ -281,13 +287,17 @@ auto println(String string, A... args) -> void {
         Arena cstr_arena{string.length + 1};
         const char* format_cstr = string.cstr(cstr_arena);
 
-        u32 length = snprintf(NULL, 0, format_cstr, args...);
+        String format;
 
-        Arena format_arena{length + 1};
+        format.length = snprintf(NULL, 0, format_cstr, args...);
 
-        String format{ format_arena.allocate<const char>(length + 1), length };
+        Arena format_arena{format.length + 1};
 
-        snprintf(const_cast<char*>(format.data), format.length + 1, format_cstr, args...);
+        char* buffer = format_arena.allocate<char>(format.length + 1);
+
+        snprintf(buffer, format.length + 1, format_cstr, args...);
+
+        format.data = buffer;
 
         assert(write(STDOUT_FILENO, format.data, format.length) >= 0);
         assert(write(STDOUT_FILENO, "\n", 1) >= 0);
@@ -303,9 +313,11 @@ auto fmt(Arena& arena, String format, A... args) -> String {
 
     string.length = snprintf(NULL, 0, format_cstr, args...);
 
-    string.data = arena.allocate<const char>(string.length + 1);
+    char* buffer = arena.allocate<char>(string.length + 1);
 
-    snprintf(const_cast<char*>(string.data), string.length + 1, format_cstr, args...);
+    snprintf(buffer, string.length + 1, format_cstr, args...);
+
+    string.data = buffer;
 
     return string;
 }
