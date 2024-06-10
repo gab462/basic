@@ -1,9 +1,2 @@
 CompileFlags:
   Add: [ "-std=c++17", "-Wall", "-Wextra", "-Wshadow", "-pedantic" ]
-
----
-
-If:
-  PathMatch: .*\.h
-CompileFlags:
-  Add: [ "-DBASIC_IMPLEMENTATION"]

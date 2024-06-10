@@ -7,7 +7,7 @@ int main(void) {
 
     f64* d = arena.make<f64>(12.0);
 
-    println("Hello, World! %d %.2f", *n, *d);
+    println(String{"Hello, World! %d %.2f"}.format(arena, *n, *d));
 
     Vector<i32> vec{arena, 4};
 
@@ -16,7 +16,7 @@ int main(void) {
     }
 
     for (auto& it: vec) {
-        println("%d", it);
+        println(String{"%d"}.format(arena, it));
     }
 
     Vector<i32> vec2{arena, 4};
@@ -24,7 +24,7 @@ int main(void) {
     vec2.append(5, 6, 7, 8);
 
     for (auto& it: vec2) {
-        println("%d", it);
+        println(String{"%d"}.format(arena, it));
     }
 
     println(read_file(arena, "LICENSE"));
@@ -39,9 +39,9 @@ int main(void) {
         println(it);
     }
 
-    println("Contains: %d", String{"Hello World"}.substring("Hello"));
-    println("Contains: %d", String{"Hello World"}.substring("World"));
-    println("Contains: %d", String{"Hello World"}.substring("Word"));
+    println(String{"Contains: %d"}.format(arena, String{"Hello World"}.substring("Hello")));
+    println(String{"Contains: %d"}.format(arena, String{"Hello World"}.substring("World")));
+    println(String{"Contains: %d"}.format(arena, String{"Hello World"}.substring("Word")));
 
     String hello = "Hello";
 

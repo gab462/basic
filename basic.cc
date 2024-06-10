@@ -19,22 +19,20 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
-auto operator new(size_t n, void* ptr) -> void* {
-    (void) n;
+auto operator new(size_t, void* ptr) -> void* {
     return ptr;
 }
 
-auto operator new[](size_t n, void* ptr) -> void* {
-    (void) n;
+auto operator new[](size_t, void* ptr) -> void* {
     return ptr;
 }
 
 struct Arena {
-    u32 capacity;
+    size_t capacity;
     u32 position;
     void* memory;
 
-    Arena(u32 n): capacity{n}, position{0}, memory{malloc(n)} {
+    explicit Arena(size_t n): capacity{n}, position{0}, memory{malloc(n)} {
         assert(memory != NULL);
     }
 
@@ -73,11 +71,11 @@ struct Arena {
 
 template <typename T>
 struct Vector {
-    u32 length;
+    size_t length;
     u32 position;
     T* data;
 
-    Vector(Arena& arena, u32 n): length{n}, position{0} {
+    Vector(Arena& arena, size_t n): length{n}, position{0} {
         data = arena.allocate<T>(length);
     }
 
@@ -101,22 +99,22 @@ struct Vector {
         return data[n];
     }
 
-    auto begin () -> T* {
+    auto begin() -> T* {
         return &data[0];
     }
 
-    auto end () -> T* {
-        return &data[length]; // position?
+    auto end() -> T* {
+        return &data[length];
     }
 };
 
 struct String {
+    size_t length;
     const char* data;
-    u32 length;
 
-    String(const char* s): data(s), length(strlen(s)) {}
-    String(const char* s, u32 n): data(s), length(n) {}
-    String(): data(nullptr), length(0) {}
+    String(const char* s): length{strlen(s)}, data{s} {}
+    String(const char* s, size_t n): length{n}, data{s} {}
+    String(): length{0}, data{nullptr} {}
 
     auto operator==(String other) -> bool {
         if (length != other.length)
@@ -155,9 +153,9 @@ struct String {
         u32 separator_count = count_characters(separator);
         Vector<String> strings{arena, separator_count + 1};
 
-        u32 position = 0;
+        size_t position = 0;
 
-        for (u32 i = 0; i < length; ++i) {
+        for (size_t i = 0; i < length; ++i) {
             if (data[i] == separator) {
                 strings.append(String{data + position, i - position});
                 position = i + 1;
@@ -198,6 +196,25 @@ struct String {
 
         return string;
     }
+
+    template <typename ...A>
+    auto format(Arena& arena, A... args) -> String {
+        Arena cstr_arena{length + 1};
+        const char* format_cstr = cstr(cstr_arena);
+
+        String string;
+
+        string.length = snprintf(NULL, 0, format_cstr, args...);
+
+        char* buffer = arena.allocate<char>(string.length + 1);
+
+        snprintf(buffer, string.length + 1, format_cstr, args...);
+
+        string.data = buffer;
+
+        return string;
+    }
+
 
     auto substring(String other) -> bool {
         if (other.length > length)
@@ -275,51 +292,7 @@ auto read_file(Arena& arena, String path) -> String {
     return string;
 }
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-security"
-
-template <typename ...A>
-auto println(String string, A... args) -> void {
-    if (!string.substring("%")) { // FIXME: plain % impossible
-        assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
-        assert(write(STDOUT_FILENO, "\n", 1) >= 0);
-    } else {
-        Arena cstr_arena{string.length + 1};
-        const char* format_cstr = string.cstr(cstr_arena);
-
-        String format;
-
-        format.length = snprintf(NULL, 0, format_cstr, args...);
-
-        Arena format_arena{format.length + 1};
-
-        char* buffer = format_arena.allocate<char>(format.length + 1);
-
-        snprintf(buffer, format.length + 1, format_cstr, args...);
-
-        format.data = buffer;
-
-        assert(write(STDOUT_FILENO, format.data, format.length) >= 0);
-        assert(write(STDOUT_FILENO, "\n", 1) >= 0);
-    }
+auto println(String string) -> void {
+    assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
+    assert(write(STDOUT_FILENO, "\n", 1) >= 0);
 }
-
-template <typename ...A>
-auto fmt(Arena& arena, String format, A... args) -> String {
-    Arena cstr_arena{format.length + 1};
-    const char* format_cstr = format.cstr(cstr_arena);
-
-    String string;
-
-    string.length = snprintf(NULL, 0, format_cstr, args...);
-
-    char* buffer = arena.allocate<char>(string.length + 1);
-
-    snprintf(buffer, string.length + 1, format_cstr, args...);
-
-    string.data = buffer;
-
-    return string;
-}
-
-#pragma clang diagnostic pop

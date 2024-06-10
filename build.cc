@@ -51,13 +51,6 @@ void run_command(Vector<String> cmd) {
     }
 }
 
-void cc(Vector<String>& cmd) {
-    cmd.append("clang");
-    cmd.append("-std=c++17", "-pedantic");
-    cmd.append("-Wall", "-Wextra", "-Wshadow");
-    cmd.append("-fno-exceptions", "-fno-rtti");
-}
-
 void build_self(void) {
     Arena arena{1024};
 
