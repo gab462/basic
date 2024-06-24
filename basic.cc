@@ -296,3 +296,14 @@ auto println(String string) -> void {
     assert(write(STDOUT_FILENO, string.data, string.length) >= 0);
     assert(write(STDOUT_FILENO, "\n", 1) >= 0);
 }
+
+auto println(const char* s) -> void {
+    println(String{s});
+}
+
+template <typename ...A>
+auto println(const char* format, A... args) -> void {
+    Arena arena{static_cast<size_t>(snprintf(NULL, 0, format, args...)) + 1};
+
+    println(String{format}.format(arena, args...));
+}

@@ -3,7 +3,7 @@
 
 #include "basic.cc"
 
-#define CC "clang", "-std=c++17", "-pedantic", \
+#define CC "cc", "-std=c++17", "-pedantic", \
     "-Wall", "-Wextra", "-Wshadow", \
     "-fno-exceptions", "-fno-rtti"
 
