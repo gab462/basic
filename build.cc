@@ -7,7 +7,7 @@
     "-Wall", "-Wextra", "-Wshadow", \
     "-fno-exceptions", "-fno-rtti"
 
-String pwd(Arena& arena) {
+auto pwd(Arena& arena) -> String {
     char path[256];
     assert(getcwd(path, 256) != NULL);
 
@@ -23,8 +23,11 @@ String pwd(Arena& arena) {
     return string;
 }
 
-void run_command(Vector<String> cmd) {
+template <typename ...A>
+auto run_command(A... args) -> void {
     Arena arena{1024};
+
+    auto cmd = make_array<String>(args...);
 
     println(String{" "}.join(arena, cmd));
 
@@ -32,7 +35,8 @@ void run_command(Vector<String> cmd) {
         ? pwd(arena).append(arena, cmd[0].chop_left(1))
         : cmd[0];
 
-    Vector<const char*> cmd_cstrs{arena, cmd.length + 1};
+    Vector<const char*> cmd_cstrs;
+    cmd_cstrs.reserve(arena, cmd.length + 1);
     for (auto& it: cmd) {
         cmd_cstrs.append(it.cstr(arena));
     }
@@ -51,27 +55,17 @@ void run_command(Vector<String> cmd) {
     }
 }
 
-void build_self(void) {
-    Arena arena{1024};
+auto build_self(void) -> void {
+    run_command(CC, "-o", "build", "build.cc", "-ggdb");
 
-    Vector<String> cmd{arena, CC, "-o", "build", "build.cc", "-ggdb"};
-
-    run_command(cmd);
-
-    Vector<String> self{arena, "./build", "example"};
-
-    run_command(self);
+    run_command("./build", "example");
 }
 
-void build_example(void) {
-    Arena arena{1024};
-
-    Vector<String> cmd{arena, CC, "-o", "example", "example.cc", "-ggdb"};
-
-    run_command(cmd);
+auto build_example(void) -> void {
+    run_command(CC, "-o", "example", "example.cc", "-ggdb");
 }
 
-int main(int argc, char* argv[]) {
+auto main(int argc, char* argv[]) -> int {
     String type = argc > 1 ? argv[1] : "self";
 
     if (type == "self")

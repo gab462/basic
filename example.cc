@@ -1,6 +1,6 @@
 #include "basic.cc"
 
-int main(void) {
+auto main(void) -> int {
     Arena arena{2048};
 
     i32* n = arena.make<i32>(4);
@@ -9,31 +9,57 @@ int main(void) {
 
     println("Hello, World! %d %.2f", *n, *d);
 
-    Vector<i32> vec{arena, 4};
+    Vector<i32> vec;
 
-    for (i32 i = 0; i < 4; ++i) {
-        vec[i] = i;
-    }
+    vec.reserve(arena, 4);
+
+    vec.append(1, 2, 3, 4);
 
     for (auto& it: vec) {
         println("%d", it);
     }
 
-    Vector<i32> vec2{arena, 4};
+    println();
 
-    vec2.append(5, 6, 7, 8);
+    //Array<i32, 4> vec2{5, 6, 7, 8};
+    auto vec2 = make_array<i32>(5, 6, 7, 8);
 
     for (auto& it: vec2) {
         println("%d", it);
     }
 
+    println();
+
+    auto vec3 = make_array<i32>(1, 2, 3, 4, 5, 6)
+        .map([](i32 x){ return x + x; });
+
+    for (auto& it: vec3) {
+        println("%d", it);
+    }
+
+    println();
+
+    vec3.filter([](i32 x){ return x % 3 == 0; });
+
+    for (auto& it: vec3) {
+        println("%d", it);
+    }
+
+    println();
+
+    i32 sum = vec3.reduce([](i32 x, i32 y){ return x + y; });
+
+    println("%d", sum);
+
+    println();
+
     println(read_file(arena, "LICENSE"));
 
     println(String{"Hello,"}.append(arena, "World!"));
 
-    println(String{", "}.join(arena, Vector<String>{arena, "Hello", "World!", "Test!"}));
+    println(String{", "}.join(arena, make_array<String>("Hello", "World!", "Test!")));
 
-    Vector<String> split = String{"Hello,World,Test"}.split(arena, ',');
+    Container<String> split = String{"Hello,World,Test"}.split(arena, ',');
 
     for (auto& it: split) {
         println(it);

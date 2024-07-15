@@ -19,6 +19,9 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
+// https://groups.google.com/a/isocpp.org/g/std-proposals/c/xDQR3y5uTZ0/m/VKmOiLRzHqkJ
+template <typename T, typename ...A> using func = auto (*) (A...) -> T;
+
 auto operator new(size_t, void* ptr) -> void* {
     return ptr;
 }
@@ -70,19 +73,10 @@ struct Arena {
 };
 
 template <typename T>
-struct Vector {
+struct Container {
     size_t length;
     u32 position;
     T* data;
-
-    Vector(Arena& arena, size_t n): length{n}, position{0} {
-        data = arena.allocate<T>(length);
-    }
-
-    template <typename ...A>
-    Vector(Arena& arena, T a, T b, A... args): length{sizeof...(args) + 2}, position{0} {
-        data = arena.allocate<T>(length, a, b, args...);
-    }
 
     auto push(T value) -> void {
         assert(position < length);
@@ -91,8 +85,10 @@ struct Vector {
     }
 
     template <typename ...A>
-    auto append(A... args) -> void {
+    auto append(A... args) -> Container<T>& {
         (push(args), ...);
+
+        return *this;
     }
 
     auto operator[] (u32 n) -> T& {
@@ -104,7 +100,104 @@ struct Vector {
     }
 
     auto end() -> T* {
-        return &data[length];
+        return &data[position];
+    }
+
+    auto clone(Arena& arena) -> Container<T> {
+        Container<T> container{length, position, nullptr};
+
+        container.data = arena.allocate<T>(length);
+
+        memcpy(container.data, data, sizeof(T) * length);
+
+        return container;
+    }
+
+    auto drop(u32 n) -> Container<T> {
+        assert(n <= length);
+
+        return Container{length - n, position < n ? 0 : position - n, data + n};
+    }
+
+    auto take(u32 n) -> Container<T> {
+        assert(n <= length);
+
+        return Container{n, n < position ? n : position, data};
+    }
+
+    auto head() -> T& {
+        return data[0];
+    }
+
+    auto tail() -> Container<T> {
+        return drop(1);
+    }
+
+    auto map(func<T, T> op) -> Container<T>& {
+        for (auto& it: *this) {
+            it = op(it);
+        }
+
+        return *this;
+    }
+
+    auto filter(func<bool, T> op) -> Container<T>& {
+        u32 i = 0;
+
+        for (auto& it: *this) {
+            if (op(it))
+                data[i++] = it;
+        }
+
+        position = i;
+
+        return *this;
+    }
+
+    auto reduce(func<T, T, T> op) -> T {
+        T acc{}; // FIXME: may not be well defined
+
+        for (auto& it: *this) {
+            acc = op(acc, it);
+        }
+
+        return acc;
+    }
+};
+
+template <typename T, size_t N>
+struct Array: Container<T> {
+    T buffer[N];
+
+    Array(): Container<T>{N, 0, buffer} {}
+
+    template <typename ...A>
+    Array(A... args): Container<T>{N, sizeof...(args), buffer}, buffer{args...} {}
+};
+
+// FIXME: constructor
+template <typename T, typename ...A>
+auto make_array(A... args) -> Array<T, sizeof...(args)> {
+    return Array<T, sizeof...(args)>{args...};
+}
+
+template <typename T>
+struct Vector: Container<T> {
+    Vector(): Container<T>{} {}
+
+    template <typename ...A>
+    Vector(Arena& arena, A... args): Container<T>{sizeof...(args), sizeof...(args), nullptr} {
+        Container<T>::data = arena.allocate<T>(Container<T>::length, args...);
+        Container<T>::position = Container<T>::length;
+    }
+
+    auto reserve(Arena& arena, size_t n) -> Vector<T>& {
+        assert(Container<T>::data == nullptr);
+
+        Container<T>::data = arena.allocate<T>(n);
+        Container<T>::length = n;
+
+        return *this;
     }
 };
 
@@ -151,7 +244,8 @@ struct String {
 
     auto split(Arena& arena, char separator) -> Vector<String> {
         u32 separator_count = count_characters(separator);
-        Vector<String> strings{arena, separator_count + 1};
+        Vector<String> strings;
+        strings.reserve(arena, separator_count + 1);
 
         size_t position = 0;
 
@@ -168,7 +262,7 @@ struct String {
         return strings;
     }
 
-    auto join(Arena& arena, Vector<String> strings) -> String {
+    auto join(Arena& arena, Container<String> strings) -> String {
         String string;
 
         for (auto& it: strings) {
@@ -290,6 +384,10 @@ auto read_file(Arena& arena, String path) -> String {
     string.data = buffer;
 
     return string;
+}
+
+auto println() -> void {
+    assert(write(STDOUT_FILENO, "\n", 1) >= 0);
 }
 
 auto println(String string) -> void {
