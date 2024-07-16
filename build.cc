@@ -13,7 +13,7 @@ auto absolute_path(ref<Arena> arena, String file) -> String {
     buf<char, 256> path;
     assert(getcwd(path, 256) != NULL);
 
-    return StringBuilder{arena}
+    return String_Builder{arena}
         .append(path, file.chop_left(1))
         .result;
 }

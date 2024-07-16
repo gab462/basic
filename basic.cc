@@ -154,12 +154,12 @@ struct Vector: Container<T> {
 };
 
 template <typename T>
-struct VectorBuilder {
+struct Vector_Builder {
     ref<Arena> arena;
     ptr<T> end;
     Vector<T> result;
 
-    VectorBuilder(ref<Arena> a): arena{a}, result{} {
+    Vector_Builder(ref<Arena> a): arena{a}, result{} {
         a.align<T>();
         result.data = static_cast<ptr<T>>(a.end());
         end = result.data;
@@ -172,7 +172,7 @@ struct VectorBuilder {
     }
 
     template <typename ...A>
-    auto append(A... args) -> ref<VectorBuilder<T>> {
+    auto append(A... args) -> ref<Vector_Builder<T>> {
         usize n = sizeof...(args);
 
         auto space = arena.allocate<T>(n, args...);
@@ -185,7 +185,7 @@ struct VectorBuilder {
     }
 
     template <typename ...A>
-    auto put(A... args) -> ref<VectorBuilder<T>> {
+    auto put(A... args) -> ref<Vector_Builder<T>> {
         auto space = arena.make<T>(args...);
 
         assert(end == space);
@@ -227,7 +227,7 @@ struct String {
     }
 
     auto split(ref<Arena> arena, char separator) -> Vector<String> {
-        VectorBuilder<String> strings{arena};
+        Vector_Builder<String> strings{arena};
 
         usize position = 0;
 
@@ -368,12 +368,12 @@ struct String {
     }
 };
 
-struct StringBuilder {
+struct String_Builder {
     ref<Arena> arena;
     ptr<char> end;
     String result;
 
-    StringBuilder(ref<Arena> a): arena{a}, result{} {
+    String_Builder(ref<Arena> a): arena{a}, result{} {
         result.data = static_cast<ptr<char>>(a.end());
         end = static_cast<ptr<char>>(a.end());
     }
@@ -394,7 +394,7 @@ struct StringBuilder {
     }
 
     template <typename ...A>
-    auto append(A... args) -> ref<StringBuilder> {
+    auto append(A... args) -> ref<String_Builder> {
         (push(args), ...);
 
         return *this;

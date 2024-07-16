@@ -10,7 +10,7 @@ auto main(void) -> int {
     println("Hello, World! %d %.2f", *n, *d);
 
     auto vec =
-        VectorBuilder<i32>{arena}
+        Vector_Builder<i32>{arena}
         .append(1, 2)
         .append(3, 4)
         .result;
