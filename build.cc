@@ -13,20 +13,9 @@ auto absolute_path(ref<Arena> arena, String file) -> String {
     buf<char, 256> path;
     assert(getcwd(path, 256) != NULL);
 
-    auto path_length = strlen(path);
-
-    String string;
-    string.length = path_length + file.length - 1; // '.'
-
-    auto buffer = arena.allocate<char>(string.length);
-
-    memcpy(buffer, path, path_length);
-
-    memcpy(buffer + path_length, file.chop_left(1).data, file.length - 1);
-
-    string.data = buffer;
-
-    return string;
+    return StringBuilder{arena}
+        .append(path, file.chop_left(1))
+        .result;
 }
 
 template <typename ...A>
@@ -41,7 +30,6 @@ auto run_command(A... args) -> void {
         ? absolute_path(arena, cmd[0])
         : cmd[0];
 
-    // TODO: .map()
     Vector<ptr<imm<char>>> cmd_cstrs;
     cmd_cstrs.reserve(arena, cmd.length + 1);
     for (auto it: cmd) {

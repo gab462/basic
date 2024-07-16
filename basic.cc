@@ -49,14 +49,23 @@ struct Arena {
         free(memory);
     }
 
-    template <typename T, typename ...A>
-    auto make(A... args) -> ptr<T> {
+    auto end() -> ptr<void> {
+        return static_cast<ptr<char>>(memory) + position;
+    }
+
+    template <typename T>
+    auto align() -> void {
         if (position % alignof(T) != 0)
             position += (alignof(T) - (position % alignof(T)));
+    }
+
+    template <typename T, typename ...A>
+    auto make(A... args) -> ptr<T> {
+        align<T>();
 
         assert(position + sizeof(T) <= capacity);
 
-        auto pointer = new(static_cast<ptr<char>>(memory) + position) T{args...};
+        auto pointer = new(end()) T{args...};
 
         position += sizeof(T);
 
@@ -65,12 +74,11 @@ struct Arena {
 
     template <typename T, typename ...A>
     auto allocate(usize n = 1, A... args) -> ptr<T> {
-        if (position % alignof(T) != 0)
-            position += (alignof(T) - (position % alignof(T)));
+        align<T>();
 
         assert(position + sizeof(T) * n <= capacity);
 
-        auto pointer = new(static_cast<ptr<char>>(memory) + position) T[n]{args...};
+        auto pointer = new(end()) T[n]{args...};
 
         position += sizeof(T) * n;
 
@@ -107,71 +115,6 @@ struct Container {
 
     auto end() -> ptr<T> {
         return &data[position];
-    }
-
-    auto clone(ref<Arena> arena) -> Container<T> {
-        Container<T> container{length, position, nullptr};
-
-        container.data = arena.allocate<T>(length);
-
-        memcpy(container.data, data, sizeof(T) * length);
-
-        return container;
-    }
-
-    auto drop(usize n) -> Container<T> {
-        assert(n <= length);
-
-        return Container{length - n, position < n ? 0 : position - n, data + n};
-    }
-
-    auto take(usize n) -> Container<T> {
-        assert(n <= length);
-
-        return Container{n, n < position ? n : position, data};
-    }
-
-    auto head() -> ref<T> {
-        return data[0];
-    }
-
-    auto tail() -> Container<T> {
-        return drop(1);
-    }
-
-    auto map(func<T, T> op) -> ref<Container<T>> {
-        for (ref<T> it: *this) {
-            it = op(it);
-        }
-
-        return *this;
-    }
-
-    // TODO:
-    // template <typename U>
-    // auto map(ref<Arena> arena, func<U, T> op) -> ref<Vector<U>>
-
-    auto filter(func<bool, T> op) -> ref<Container<T>> {
-        usize i = 0;
-
-        for (ref<T> it: *this) {
-            if (op(it))
-                data[i++] = it;
-        }
-
-        position = i;
-
-        return *this;
-    }
-
-    auto reduce(func<T, T, T> op) -> T {
-        T acc{}; // FIXME: may not be well defined
-
-        for (ref<T> it: *this) {
-            acc = op(acc, it);
-        }
-
-        return acc;
     }
 };
 
@@ -210,6 +153,49 @@ struct Vector: Container<T> {
     }
 };
 
+template <typename T>
+struct VectorBuilder {
+    ref<Arena> arena;
+    ptr<T> end;
+    Vector<T> result;
+
+    VectorBuilder(ref<Arena> a): arena{a}, result{} {
+        a.align<T>();
+        result.data = static_cast<ptr<T>>(a.end());
+        end = result.data;
+    }
+
+    auto grow(usize n) -> void {
+        result.length += n;
+        result.position += n;
+        end += n;
+    }
+
+    template <typename ...A>
+    auto append(A... args) -> ref<VectorBuilder<T>> {
+        usize n = sizeof...(args);
+
+        auto space = arena.allocate<T>(n, args...);
+
+        assert(end == space);
+
+        grow(n);
+
+        return *this;
+    }
+
+    template <typename ...A>
+    auto put(A... args) -> ref<VectorBuilder<T>> {
+        auto space = arena.make<T>(args...);
+
+        assert(end == space);
+
+        grow(1);
+
+        return *this;
+    }
+};
+
 struct String {
     usize length;
     ptr<imm<char>> data;
@@ -240,35 +226,22 @@ struct String {
         return string;
     }
 
-    auto count_characters(char c) -> u32 {
-        u32 count = 0;
-
-        for (u32 i = 0; i < length; ++i) {
-            if (data[i] == c)
-                ++count;
-        }
-
-        return count;
-    }
-
     auto split(ref<Arena> arena, char separator) -> Vector<String> {
-        auto separator_count = count_characters(separator);
-        Vector<String> strings;
-        strings.reserve(arena, separator_count + 1);
+        VectorBuilder<String> strings{arena};
 
         usize position = 0;
 
         for (usize i = 0; i < length; ++i) {
             if (data[i] == separator) {
-                strings.append(String{data + position, i - position});
+                strings.put(data + position, i - position);
                 position = i + 1;
             }
 
             if (i + 1 == length)
-                strings.append(String{data + position, length - position});
+                strings.put(data + position, length - position);
         }
 
-        return strings;
+        return strings.result;
     }
 
     auto join(ref<Arena> arena, Container<String> strings) -> String {
@@ -395,6 +368,47 @@ struct String {
     }
 };
 
+struct StringBuilder {
+    ref<Arena> arena;
+    ptr<char> end;
+    String result;
+
+    StringBuilder(ref<Arena> a): arena{a}, result{} {
+        result.data = static_cast<ptr<char>>(a.end());
+        end = static_cast<ptr<char>>(a.end());
+    }
+
+    auto grow(usize n) -> void {
+        result.length += n;
+        end += n;
+    }
+
+    auto push(String string) -> void {
+        auto space = arena.allocate<char>(string.length);
+
+        assert(end == space);
+
+        memcpy(space, string.data, string.length);
+
+        grow(string.length);
+    }
+
+    template <typename ...A>
+    auto append(A... args) -> ref<StringBuilder> {
+        (push(args), ...);
+
+        return *this;
+    }
+
+    auto put(char c) -> void {
+        auto space = arena.make<char>(c);
+
+        assert(end == space);
+
+        grow(1);
+    }
+};
+
 auto println() -> void {
     assert(write(STDOUT_FILENO, "\n", 1) >= 0);
 }
@@ -414,3 +428,5 @@ auto println(ptr<imm<char>> format, A... args) -> void {
 
     println(String{format}.format(arena, args...));
 }
+
+// TODO: make builders generic / inherit

@@ -9,11 +9,11 @@ auto main(void) -> int {
 
     println("Hello, World! %d %.2f", *n, *d);
 
-    Vector<i32> vec;
-
-    vec.reserve(arena, 4);
-
-    vec.append(1, 2, 3, 4);
+    auto vec =
+        VectorBuilder<i32>{arena}
+        .append(1, 2)
+        .append(3, 4)
+        .result;
 
     for (auto it: vec) {
         println("%d", it);
@@ -21,21 +21,11 @@ auto main(void) -> int {
 
     println();
 
-    //Array<i32, 4> vec2{5, 6, 7, 8};
     auto vec2 = make_array<i32>(5, 6, 7, 8);
 
     for (auto it: vec2) {
         println("%d", it);
     }
-
-    println();
-
-    auto sum = make_array<i32>(1, 2, 3, 4, 5, 6)
-        .map([](i32 x){ return x + x; })
-        .filter([](i32 x){ return x % 3 == 0; })
-        .reduce([](i32 x, i32 y){ return x + y; });
-
-    println("%d", sum);
 
     println();
 
