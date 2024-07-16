@@ -7,16 +7,22 @@
     "-Wall", "-Wextra", "-Wshadow", \
     "-fno-exceptions", "-fno-rtti"
 
-auto pwd(Arena& arena) -> String {
-    char path[256];
+auto absolute_path(ref<Arena> arena, String file) -> String {
+    assert(file.left(2) == "./"); // TODO: other cases
+
+    buf<char, 256> path;
     assert(getcwd(path, 256) != NULL);
 
+    auto path_length = strlen(path);
+
     String string;
-    string.length = strlen(path);
+    string.length = path_length + file.length - 1; // '.'
 
-    char* buffer = arena.allocate<char>(string.length);
+    auto buffer = arena.allocate<char>(string.length);
 
-    memcpy(buffer, path, string.length);
+    memcpy(buffer, path, path_length);
+
+    memcpy(buffer + path_length, file.chop_left(1).data, file.length - 1);
 
     string.data = buffer;
 
@@ -32,22 +38,23 @@ auto run_command(A... args) -> void {
     println(String{" "}.join(arena, cmd));
 
     String bin = (cmd[0].left(2) == "./")
-        ? pwd(arena).append(arena, cmd[0].chop_left(1))
+        ? absolute_path(arena, cmd[0])
         : cmd[0];
 
-    Vector<const char*> cmd_cstrs;
+    // TODO: .map()
+    Vector<ptr<imm<char>>> cmd_cstrs;
     cmd_cstrs.reserve(arena, cmd.length + 1);
-    for (auto& it: cmd) {
+    for (auto it: cmd) {
         cmd_cstrs.append(it.cstr(arena));
     }
-    cmd_cstrs.append(static_cast<char*>(0));
+    cmd_cstrs.append(static_cast<ptr<char>>(0));
 
     pid_t pid = fork();
 
     assert(pid >= 0);
 
     if (pid == 0) {
-        execvp(const_cast<char*>(bin.cstr(arena)), const_cast<char* const*>(cmd_cstrs.data));
+        execvp(const_cast<ptr<char>>(bin.cstr(arena)), const_cast<ptr<imm<ptr<char>>>>(cmd_cstrs.data));
         assert(false);
     } else {
         int status;
@@ -55,17 +62,17 @@ auto run_command(A... args) -> void {
     }
 }
 
-auto build_self(void) -> void {
+auto build_self() -> void {
     run_command(CC, "-o", "build", "build.cc", "-ggdb");
 
     run_command("./build", "example");
 }
 
-auto build_example(void) -> void {
+auto build_example() -> void {
     run_command(CC, "-o", "example", "example.cc", "-ggdb");
 }
 
-auto main(int argc, char* argv[]) -> int {
+auto main(int argc, ptr<ptr<char>> argv) -> int {
     String type = argc > 1 ? argv[1] : "self";
 
     if (type == "self")

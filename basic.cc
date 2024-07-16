@@ -19,23 +19,29 @@ using i64 = int64_t;
 using f32 = float;
 using f64 = double;
 
+using usize = size_t;
+
 // https://groups.google.com/a/isocpp.org/g/std-proposals/c/xDQR3y5uTZ0/m/VKmOiLRzHqkJ
+template <typename T> using ptr = T*;
+template <typename T> using ref = T&;
+template <typename T> using imm = T const;
+template <typename T, usize N> using buf = T[N];
 template <typename T, typename ...A> using func = auto (*) (A...) -> T;
 
-auto operator new(size_t, void* ptr) -> void* {
-    return ptr;
+auto operator new(usize, ptr<void> p) -> ptr<void> {
+    return p;
 }
 
-auto operator new[](size_t, void* ptr) -> void* {
-    return ptr;
+auto operator new[](usize, ptr<void> p) -> ptr<void> {
+    return p;
 }
 
 struct Arena {
-    size_t capacity;
-    u32 position;
-    void* memory;
+    usize capacity;
+    usize position;
+    ptr<void> memory;
 
-    explicit Arena(size_t n): capacity{n}, position{0}, memory{malloc(n)} {
+    explicit Arena(usize n): capacity{n}, position{0}, memory{malloc(n)} {
         assert(memory != NULL);
     }
 
@@ -44,13 +50,13 @@ struct Arena {
     }
 
     template <typename T, typename ...A>
-    auto make(A... args) -> T* {
+    auto make(A... args) -> ptr<T> {
         if (position % alignof(T) != 0)
             position += (alignof(T) - (position % alignof(T)));
 
         assert(position + sizeof(T) <= capacity);
 
-        T* pointer = new(static_cast<char*>(memory) + position) T{args...};
+        auto pointer = new(static_cast<ptr<char>>(memory) + position) T{args...};
 
         position += sizeof(T);
 
@@ -58,13 +64,13 @@ struct Arena {
     }
 
     template <typename T, typename ...A>
-    auto allocate(u32 n = 1, A... args) -> T* {
+    auto allocate(usize n = 1, A... args) -> ptr<T> {
         if (position % alignof(T) != 0)
             position += (alignof(T) - (position % alignof(T)));
 
         assert(position + sizeof(T) * n <= capacity);
 
-        T* pointer = new(static_cast<char*>(memory) + position) T[n]{args...};
+        auto pointer = new(static_cast<ptr<char>>(memory) + position) T[n]{args...};
 
         position += sizeof(T) * n;
 
@@ -74,9 +80,9 @@ struct Arena {
 
 template <typename T>
 struct Container {
-    size_t length;
-    u32 position;
-    T* data;
+    usize length;
+    usize position;
+    ptr<T> data;
 
     auto push(T value) -> void {
         assert(position < length);
@@ -85,25 +91,25 @@ struct Container {
     }
 
     template <typename ...A>
-    auto append(A... args) -> Container<T>& {
+    auto append(A... args) -> ref<Container<T>> {
         (push(args), ...);
 
         return *this;
     }
 
-    auto operator[] (u32 n) -> T& {
+    auto operator[] (usize n) -> ref<T> {
         return data[n];
     }
 
-    auto begin() -> T* {
+    auto begin() -> ptr<T> {
         return &data[0];
     }
 
-    auto end() -> T* {
+    auto end() -> ptr<T> {
         return &data[position];
     }
 
-    auto clone(Arena& arena) -> Container<T> {
+    auto clone(ref<Arena> arena) -> Container<T> {
         Container<T> container{length, position, nullptr};
 
         container.data = arena.allocate<T>(length);
@@ -113,19 +119,19 @@ struct Container {
         return container;
     }
 
-    auto drop(u32 n) -> Container<T> {
+    auto drop(usize n) -> Container<T> {
         assert(n <= length);
 
         return Container{length - n, position < n ? 0 : position - n, data + n};
     }
 
-    auto take(u32 n) -> Container<T> {
+    auto take(usize n) -> Container<T> {
         assert(n <= length);
 
         return Container{n, n < position ? n : position, data};
     }
 
-    auto head() -> T& {
+    auto head() -> ref<T> {
         return data[0];
     }
 
@@ -133,18 +139,22 @@ struct Container {
         return drop(1);
     }
 
-    auto map(func<T, T> op) -> Container<T>& {
-        for (auto& it: *this) {
+    auto map(func<T, T> op) -> ref<Container<T>> {
+        for (ref<T> it: *this) {
             it = op(it);
         }
 
         return *this;
     }
 
-    auto filter(func<bool, T> op) -> Container<T>& {
-        u32 i = 0;
+    // TODO:
+    // template <typename U>
+    // auto map(ref<Arena> arena, func<U, T> op) -> ref<Vector<U>>
 
-        for (auto& it: *this) {
+    auto filter(func<bool, T> op) -> ref<Container<T>> {
+        usize i = 0;
+
+        for (ref<T> it: *this) {
             if (op(it))
                 data[i++] = it;
         }
@@ -157,7 +167,7 @@ struct Container {
     auto reduce(func<T, T, T> op) -> T {
         T acc{}; // FIXME: may not be well defined
 
-        for (auto& it: *this) {
+        for (ref<T> it: *this) {
             acc = op(acc, it);
         }
 
@@ -165,9 +175,9 @@ struct Container {
     }
 };
 
-template <typename T, size_t N>
+template <typename T, usize N>
 struct Array: Container<T> {
-    T buffer[N];
+    buf<T, N> buffer;
 
     Array(): Container<T>{N, 0, buffer} {}
 
@@ -186,12 +196,11 @@ struct Vector: Container<T> {
     Vector(): Container<T>{} {}
 
     template <typename ...A>
-    Vector(Arena& arena, A... args): Container<T>{sizeof...(args), sizeof...(args), nullptr} {
+    Vector(ref<Arena> arena, A... args): Container<T>{sizeof...(args), sizeof...(args), nullptr} {
         Container<T>::data = arena.allocate<T>(Container<T>::length, args...);
-        Container<T>::position = Container<T>::length;
     }
 
-    auto reserve(Arena& arena, size_t n) -> Vector<T>& {
+    auto reserve(ref<Arena> arena, usize n) -> ref<Vector<T>> {
         assert(Container<T>::data == nullptr);
 
         Container<T>::data = arena.allocate<T>(n);
@@ -202,11 +211,11 @@ struct Vector: Container<T> {
 };
 
 struct String {
-    size_t length;
-    const char* data;
+    usize length;
+    ptr<imm<char>> data;
 
-    String(const char* s): length{strlen(s)}, data{s} {}
-    String(const char* s, size_t n): length{n}, data{s} {}
+    String(ptr<imm<char>> s): length{strlen(s)}, data{s} {}
+    String(ptr<imm<char>> s, usize n): length{n}, data{s} {}
     String(): length{0}, data{nullptr} {}
 
     auto operator==(String other) -> bool {
@@ -216,12 +225,12 @@ struct String {
         return memcmp(data, other.data, length) == 0;
     }
 
-    auto append(Arena& arena, String other) -> String {
+    auto append(ref<Arena> arena, String other) -> String {
         String string;
 
         string.length = length + other.length;
 
-        char* buffer = arena.allocate<char>(string.length);
+        auto buffer = arena.allocate<char>(string.length);
 
         memcpy(buffer, data, length);
         memcpy(buffer + length, other.data, other.length);
@@ -242,14 +251,14 @@ struct String {
         return count;
     }
 
-    auto split(Arena& arena, char separator) -> Vector<String> {
-        u32 separator_count = count_characters(separator);
+    auto split(ref<Arena> arena, char separator) -> Vector<String> {
+        auto separator_count = count_characters(separator);
         Vector<String> strings;
         strings.reserve(arena, separator_count + 1);
 
-        size_t position = 0;
+        usize position = 0;
 
-        for (size_t i = 0; i < length; ++i) {
+        for (usize i = 0; i < length; ++i) {
             if (data[i] == separator) {
                 strings.append(String{data + position, i - position});
                 position = i + 1;
@@ -262,20 +271,20 @@ struct String {
         return strings;
     }
 
-    auto join(Arena& arena, Container<String> strings) -> String {
+    auto join(ref<Arena> arena, Container<String> strings) -> String {
         String string;
 
-        for (auto& it: strings) {
+        for (auto it: strings) {
             string.length += it.length + length;
         }
 
         string.length -= length;
 
-        char* buffer = arena.allocate<char>(string.length);
+        auto buffer = arena.allocate<char>(string.length);
 
-        u32 position = 0;
+        usize position = 0;
 
-        for (auto& it: strings) {
+        for (auto it: strings) {
             memcpy(buffer + position, it.data, it.length);
             position += it.length;
 
@@ -292,15 +301,15 @@ struct String {
     }
 
     template <typename ...A>
-    auto format(Arena& arena, A... args) -> String {
+    auto format(ref<Arena> arena, A... args) -> String {
         Arena cstr_arena{length + 1};
-        const char* format_cstr = cstr(cstr_arena);
+        auto format_cstr = cstr(cstr_arena);
 
         String string;
 
         string.length = snprintf(NULL, 0, format_cstr, args...);
 
-        char* buffer = arena.allocate<char>(string.length + 1);
+        auto buffer = arena.allocate<char>(string.length + 1);
 
         snprintf(buffer, string.length + 1, format_cstr, args...);
 
@@ -329,24 +338,24 @@ struct String {
         return false;
     }
 
-    auto right(u32 n) -> String {
+    auto right(usize n) -> String {
         return { data + length - n, n };
     }
 
-    auto left(u32 n) -> String {
+    auto left(usize n) -> String {
         return { data, n };
     }
 
-    auto chop_right(u32 n) -> String {
+    auto chop_right(usize n) -> String {
         return { data, length - n };
     }
 
-    auto chop_left(u32 n) -> String {
+    auto chop_left(usize n) -> String {
         return { data + n, length - n };
     }
     
-    auto cstr(Arena& arena) -> const char* {
-        char* s = arena.allocate<char>(length + 1);
+    auto cstr(ref<Arena> arena) -> ptr<imm<char>> {
+        auto s = arena.allocate<char>(length + 1);
 
         memcpy(s, data, length);
 
@@ -354,37 +363,37 @@ struct String {
 
         return s;
     }
+
+    static auto from_file(ref<Arena> arena, String path) -> String {
+        Arena scratch{path.length + 1};
+
+        auto path_cstr = path.cstr(scratch);
+
+        auto file = fopen(path_cstr, "rb");
+
+        assert(file != NULL);
+
+        assert(fseek(file, 0, SEEK_END) >= 0);
+
+        String string;
+
+        string.length = ftell(file);
+
+        assert(fseek(file, 0, SEEK_SET) >= 0);
+
+        auto buffer = arena.allocate<char>(string.length);
+
+        fread(buffer, 1, string.length, file);
+
+        assert(ferror(file) == 0);
+
+        fclose(file);
+
+        string.data = buffer;
+
+        return string;
+    }
 };
-
-auto read_file(Arena& arena, String path) -> String {
-    Arena scratch{path.length + 1};
-
-    const char* path_cstr = path.cstr(scratch);
-
-    FILE* file = fopen(path_cstr, "rb");
-
-    assert(file != NULL);
-
-    assert(fseek(file, 0, SEEK_END) >= 0);
-
-    String string;
-
-    string.length = ftell(file);
-
-    assert(fseek(file, 0, SEEK_SET) >= 0);
-
-    char* buffer = arena.allocate<char>(string.length);
-
-    fread(buffer, 1, string.length, file);
-
-    assert(ferror(file) == 0);
-
-    fclose(file);
-
-    string.data = buffer;
-
-    return string;
-}
 
 auto println() -> void {
     assert(write(STDOUT_FILENO, "\n", 1) >= 0);
@@ -395,13 +404,13 @@ auto println(String string) -> void {
     assert(write(STDOUT_FILENO, "\n", 1) >= 0);
 }
 
-auto println(const char* s) -> void {
+auto println(ptr<imm<char>> s) -> void {
     println(String{s});
 }
 
 template <typename ...A>
-auto println(const char* format, A... args) -> void {
-    Arena arena{static_cast<size_t>(snprintf(NULL, 0, format, args...)) + 1};
+auto println(ptr<imm<char>> format, A... args) -> void {
+    Arena arena{static_cast<usize>(snprintf(NULL, 0, format, args...)) + 1};
 
     println(String{format}.format(arena, args...));
 }
