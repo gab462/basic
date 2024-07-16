@@ -173,7 +173,7 @@ struct Vector_Builder {
 
     template <typename ...A>
     auto append(A... args) -> ref<Vector_Builder<T>> {
-        usize n = sizeof...(args);
+        auto n = sizeof...(args);
 
         auto space = arena.allocate<T>(n, args...);
 
