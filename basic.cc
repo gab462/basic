@@ -76,13 +76,16 @@ struct Arena {
     auto allocate(usize n = 1, A... args) -> ptr<T> {
         align<T>();
 
-        assert(position + sizeof(T) * n <= capacity);
+        assert(sizeof...(args) <= n);
 
-        auto pointer = new(end()) T[n]{args...};
+        auto pointer = end();
 
-        position += sizeof(T) * n;
+        (make<T>(args), ...);
 
-        return pointer;
+        // grow without initializing if no arguments
+        position += sizeof(T) * (n - sizeof...(args));
+
+        return static_cast<ptr<T>>(pointer);
     }
 };
 
