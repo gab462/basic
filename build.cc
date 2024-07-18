@@ -53,11 +53,11 @@ auto run_command(A... args) -> void {
 auto build_self() -> void {
     run_command(CC, "-o", "build", "build.cc", "-ggdb");
 
-    run_command("./build", "example");
+    run_command("./build", "run_tests");
 }
 
-auto build_example() -> void {
-    run_command(CC, "-o", "example", "example.cc", "-ggdb");
+auto build_tests() -> void {
+    run_command(CC, "-o", "run_tests", "run_tests.cc", "-ggdb");
 }
 
 auto main(int argc, ptr<ptr<char>> argv) -> int {
@@ -66,7 +66,7 @@ auto main(int argc, ptr<ptr<char>> argv) -> int {
     if (type == "self")
         build_self();
     else
-        build_example();
+        build_tests();
 
     return 0;
 }
