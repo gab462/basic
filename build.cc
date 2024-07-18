@@ -3,9 +3,14 @@
 
 #include "basic.cc"
 
-#define CC "cc", "-std=c++17", "-pedantic", \
+#define FLAGS "-std=c++17", "-pedantic", \
     "-Wall", "-Wextra", "-Wshadow", \
     "-fno-exceptions", "-fno-rtti"
+
+#define WASM_FLAGS "--target=wasm32", \
+    "-fno-builtin", "--no-standard-libraries", \
+    "-Wl,--no-entry,--export-all,--allow-undefined", \
+    "-Iwasm/stub"
 
 auto absolute_path(ref<Arena> arena, String file) -> String {
     assert(file.left(2) == "./"); // TODO: other cases
@@ -51,13 +56,26 @@ auto run_command(A... args) -> void {
 }
 
 auto build_self() -> void {
-    run_command(CC, "-o", "build", "build.cc", "-ggdb");
+    run_command("cc", FLAGS, "-o", "build", "build.cc");
 
     run_command("./build", "run_tests");
 }
 
 auto build_tests() -> void {
-    run_command(CC, "-o", "run_tests", "run_tests.cc", "-ggdb");
+    run_command("cc", FLAGS, "-o", "run_tests", "run_tests.cc");
+}
+
+auto build_wasm() -> void {
+    auto src = "wasm/main.cc";
+    auto bin = "wasm/index.wasm";
+
+    run_command("clang", FLAGS, WASM_FLAGS, "-o", bin, src);
+}
+
+auto clean() -> void {
+    run_command("rm", "wasm/index.wasm");
+    run_command("rm", "run_tests");
+    run_command("rm", "build");
 }
 
 auto main(int argc, ptr<ptr<char>> argv) -> int {
@@ -65,8 +83,13 @@ auto main(int argc, ptr<ptr<char>> argv) -> int {
 
     if (type == "self")
         build_self();
-    else
+    else if (type == "wasm")
+        build_wasm();
+    else if (type == "clean")
+        clean();
+    else {
         build_tests();
+    }
 
     return 0;
 }

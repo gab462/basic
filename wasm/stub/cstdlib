@@ -1,0 +1,22 @@
+extern unsigned char __heap_base;
+
+unsigned char* _heap_position = &__heap_base;
+
+auto malloc(size_t n) -> void* {
+    static constexpr size_t max_alignment = 16;
+
+    size_t diff = _heap_position - &__heap_base;
+
+    if (diff % max_alignment != 0)
+        _heap_position += max_alignment - (diff % max_alignment);
+
+    void* space = _heap_position;
+
+    _heap_position += n;
+
+    return space;
+}
+
+auto free(void*) -> void {
+    // TODO
+}
