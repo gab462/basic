@@ -412,6 +412,17 @@ struct String_Builder {
     }
 };
 
+template <typename F>
+struct defer {
+    F callback;
+
+    defer(F f): callback{f} {}
+
+    ~defer() {
+        callback();
+    }
+};
+
 auto println() -> void {
     assert(write(STDOUT_FILENO, "\n", 1) >= 0);
 }
@@ -431,5 +442,3 @@ auto println(ptr<imm<char>> format, A... args) -> void {
 
     println(String{format}.format(arena, args...));
 }
-
-// TODO: make builders generic / inherit

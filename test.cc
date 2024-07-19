@@ -89,6 +89,21 @@ auto test_string(ref<Arena> arena) -> void {
     assert(built == "Hello, World!");
 }
 
+auto test_defer_aux(ref<Array<i32, 2>> arr) -> void {
+    defer second = [&arr](){ arr.append(2); };
+    defer first = [&arr](){ arr.append(1); };
+}
+
+auto test_defer() -> void {
+    Array<i32, 2> arr;
+
+    test_defer_aux(arr);
+
+    assert(arr.position == 2);
+    assert(arr[0] == 1);
+    assert(arr[1] == 2);
+}
+
 auto test_all() -> void {
     Arena arena{2048};
 
@@ -96,4 +111,5 @@ auto test_all() -> void {
     test_vector(arena);
     test_array();
     test_string(arena);
+    test_defer();
 }
