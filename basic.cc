@@ -1,9 +1,9 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
-#include <cassert>
-#include <cstdio>
-#include <cstdlib>
+#include <stddef.h>
+#include <stdint.h>
+#include <assert.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 using u8 = uint8_t;
