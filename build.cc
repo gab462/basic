@@ -12,42 +12,41 @@
     "-Wl,--no-entry,--export-all,--allow-undefined", \
     "-Iwasm/stub"
 
-auto absolute_path(ref<Arena> arena, String file) -> String {
+auto absolute_path(ptr<Arena> arena, String file) -> String {
     assert(file.left(2) == "./"); // TODO: other cases
 
     buf<char, 256> path;
     assert(getcwd(path, 256) != NULL);
 
-    return String_Builder{arena}
-        .append(path, file.chop_left(1))
-        .result;
+    return String::create("")
+        .join(arena, make_array<String>(String::create(path), file.chop_left(1)).data);
 }
 
 template <typename ...A>
 auto run_command(A... args) -> void {
-    Arena arena{1024};
+    auto arena = Arena::create(1024);
+    defer cleanup = [&arena](){ arena.destroy(); };
 
-    auto cmd = make_array<String>(args...);
+    auto cmd_builder = Vector_Builder<ptr<imm<char>>>::create(&arena);
+    cmd_builder.append(args...);
+    cmd_builder.append(static_cast<ptr<char>>(0));
 
-    println(String{" "}.join(arena, cmd));
+    auto cmd = cmd_builder.result;
 
-    String bin = (cmd[0].left(2) == "./")
-        ? absolute_path(arena, cmd[0])
-        : cmd[0];
+    auto strings = Array<String, sizeof...(args)>::create();
+    (strings.append(String::create(args)), ...);
+    println(String::create(" ").join(&arena, strings.data));
 
-    Vector<ptr<imm<char>>> cmd_cstrs;
-    cmd_cstrs.reserve(arena, cmd.length + 1);
-    for (auto it: cmd) {
-        cmd_cstrs.append(it.cstr(arena));
-    }
-    cmd_cstrs.append(static_cast<ptr<char>>(0));
+    String bin = (String::create(cmd[0]).left(2) == "./")
+        ? absolute_path(&arena, String::create(cmd[0]))
+        : String::create(cmd[0]);
 
     pid_t pid = fork();
 
     assert(pid >= 0);
 
     if (pid == 0) {
-        execvp(const_cast<ptr<char>>(bin.cstr(arena)), const_cast<ptr<imm<ptr<char>>>>(cmd_cstrs.data));
+        execvp(const_cast<ptr<char>>(bin.cstr(&arena)), const_cast<ptr<imm<ptr<char>>>>(cmd.data.data));
         assert(false);
     } else {
         int status;
@@ -79,7 +78,7 @@ auto clean() -> void {
 }
 
 auto main(int argc, ptr<ptr<char>> argv) -> int {
-    String type = argc > 1 ? argv[1] : "self";
+    String type = String::create(argc > 1 ? argv[1] : "self");
 
     if (type == "self")
         build_self();

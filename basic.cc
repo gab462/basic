@@ -23,7 +23,7 @@ using usize = size_t;
 
 // https://groups.google.com/a/isocpp.org/g/std-proposals/c/xDQR3y5uTZ0/m/VKmOiLRzHqkJ
 template <typename T> using ptr = T*;
-template <typename T> using ref = T&;
+// template <typename T> using ref = T&;
 template <typename T> using imm = T const;
 template <typename T, usize N> using buf = T[N];
 template <typename T, typename ...A> using func = auto (*) (A...) -> T;
@@ -36,16 +36,30 @@ auto operator new[](usize, ptr<void> p) -> ptr<void> {
     return p;
 }
 
+template <typename F>
+struct defer {
+    F callback;
+
+    defer(F f): callback{f} {}
+
+    ~defer() {
+        callback();
+    }
+};
+
 struct Arena {
     usize capacity;
     usize position;
     ptr<void> memory;
 
-    explicit Arena(usize n): capacity{n}, position{0}, memory{malloc(n)} {
-        assert(memory != NULL);
+    static auto create(usize n) -> Arena {
+        auto mem = malloc(n);
+        assert(mem != NULL);
+
+        return { n, 0, mem };
     }
 
-    ~Arena() {
+    auto destroy() -> void {
         free(memory);
     }
 
@@ -102,13 +116,11 @@ struct Container {
     }
 
     template <typename ...A>
-    auto append(A... args) -> ref<Container<T>> {
+    auto append(A... args) -> void {
         (push(args), ...);
-
-        return *this;
     }
 
-    auto operator[] (usize n) -> ref<T> {
+    auto operator[] (usize n) -> T& {
         return data[n];
     }
 
@@ -122,90 +134,143 @@ struct Container {
 };
 
 template <typename T, usize N>
-struct Array: Container<T> {
+struct Array {
+    Container<T> data;
     buf<T, N> buffer;
 
-    Array(): Container<T>{N, 0, buffer} {}
+    static auto create() -> Array<T, N> {
+        Array<T, N> created{ { N, 0, nullptr }, {} };
+        created.data.data = created.buffer;
+        return created;
+    }
 
     template <typename ...A>
-    Array(A... args): Container<T>{N, sizeof...(args), buffer}, buffer{args...} {}
+    static auto create(A... args) -> Array<T, N> {
+        Array<T, N> created{ { N, sizeof...(args), nullptr }, { args... } };
+        created.data.data = created.buffer;
+        return created;
+    }
+
+    // FIXME: reduce duplication
+    template <typename ...A>
+    auto append(A... args) -> void {
+        data.append(args...);
+    }
+
+    auto operator[] (usize n) -> T& {
+        return data[n];
+    }
+
+    auto begin() -> ptr<T> {
+        return data.begin();
+    }
+
+    auto end() -> ptr<T> {
+        return data.end();
+    }
 };
 
-// FIXME: constructor
 template <typename T, typename ...A>
 auto make_array(A... args) -> Array<T, sizeof...(args)> {
-    return Array<T, sizeof...(args)>{args...};
+    return Array<T, sizeof...(args)>::create(args...);
 }
 
 template <typename T>
-struct Vector: Container<T> {
-    Vector(): Container<T>{} {}
+struct Vector {
+    Container<T> data;
 
-    template <typename ...A>
-    Vector(ref<Arena> arena, A... args): Container<T>{sizeof...(args), sizeof...(args), nullptr} {
-        Container<T>::data = arena.allocate<T>(Container<T>::length, args...);
+    static auto create() -> Vector<T> {
+        return {};
     }
 
-    auto reserve(ref<Arena> arena, usize n) -> ref<Vector<T>> {
-        assert(Container<T>::data == nullptr);
+    template <typename ...A>
+    static auto create(ptr<Arena> arena, A... args) -> Vector<T> {
+        static constexpr auto n = sizeof...(args);
+        return { { n, n, arena->allocate<T>(n, args...) } };
+    }
 
-        Container<T>::data = arena.allocate<T>(n);
-        Container<T>::length = n;
+    auto reserve(ptr<Arena> arena, usize n) -> void {
+        assert(data.data == nullptr);
 
-        return *this;
+        data.data = arena->allocate<T>(n);
+        data.length = n;
+    }
+
+    // FIXME: reduce duplication
+    template <typename ...A>
+    auto append(A... args) -> void {
+        data.append(args...);
+    }
+
+    auto operator[] (usize n) -> T& {
+        return data[n];
+    }
+
+    auto begin() -> ptr<T> {
+        return data.begin();
+    }
+
+    auto end() -> ptr<T> {
+        return data.end();
     }
 };
 
 template <typename T>
 struct Vector_Builder {
-    ref<Arena> arena;
+    ptr<Arena> arena;
     ptr<T> end;
     Vector<T> result;
 
-    Vector_Builder(ref<Arena> a): arena{a}, result{} {
-        a.align<T>();
-        result.data = static_cast<ptr<T>>(a.end());
-        end = result.data;
+    static auto create(ptr<Arena> a) -> Vector_Builder<T> {
+        a->align<T>();
+
+        auto start = static_cast<ptr<T>>(a->end());
+
+        return { a, start, { { 0, 0, start } } };
     }
 
     auto grow(usize n) -> void {
-        result.length += n;
-        result.position += n;
+        result.data.length += n;
+        result.data.position += n;
         end += n;
     }
 
     template <typename ...A>
-    auto append(A... args) -> ref<Vector_Builder<T>> {
-        auto n = sizeof...(args);
+    auto append(A... args) -> void {
+        static constexpr auto n = sizeof...(args);
 
-        auto space = arena.allocate<T>(n, args...);
+        auto space = arena->allocate<T>(n, args...);
 
         assert(end == space);
 
         grow(n);
-
-        return *this;
     }
 
     template <typename ...A>
-    auto put(A... args) -> ref<Vector_Builder<T>> {
-        auto space = arena.make<T>(args...);
+    auto put(A... args) -> void {
+        auto space = arena->make<T>(args...);
 
         assert(end == space);
 
         grow(1);
-
-        return *this;
     }
 };
 
 struct String {
-    usize length;
     ptr<imm<char>> data;
+    usize length;
 
-    String(ptr<imm<char>> s): length{strlen(s)}, data{s} {}
-    String(ptr<imm<char>> s, usize n): length{n}, data{s} {}
-    String(): length{0}, data{nullptr} {}
+    static auto create() -> String {
+        return {};
+    }
+
+    static auto create(ptr<imm<char>> s) -> String {
+        return { s, strlen(s) };
+    }
+
+    static auto create(ptr<imm<char>> s, usize n) -> String {
+        return { s, n };
+    }
 
     auto operator==(String other) -> bool {
         if (length != other.length)
@@ -214,12 +279,18 @@ struct String {
         return memcmp(data, other.data, length) == 0;
     }
 
-    auto append(ref<Arena> arena, String other) -> String {
-        String string;
+    auto operator==(ptr<imm<char>> s) -> bool {
+        auto other = String::create(s);
+
+        return *this == other;
+    }
+
+    auto append(ptr<Arena> arena, String other) -> String {
+        auto string = String::create();
 
         string.length = length + other.length;
 
-        auto buffer = arena.allocate<char>(string.length);
+        auto buffer = arena->allocate<char>(string.length);
 
         memcpy(buffer, data, length);
         memcpy(buffer + length, other.data, other.length);
@@ -229,8 +300,8 @@ struct String {
         return string;
     }
 
-    auto split(ref<Arena> arena, char separator) -> Vector<String> {
-        Vector_Builder<String> strings{arena};
+    auto split(ptr<Arena> arena, char separator) -> Vector<String> {
+        auto strings = Vector_Builder<String>::create(arena);
 
         usize position = 0;
 
@@ -247,8 +318,8 @@ struct String {
         return strings.result;
     }
 
-    auto join(ref<Arena> arena, Container<String> strings) -> String {
-        String string;
+    auto join(ptr<Arena> arena, Container<String> strings) -> String {
+        auto string = String::create();
 
         for (auto it: strings) {
             string.length += it.length + length;
@@ -256,7 +327,7 @@ struct String {
 
         string.length -= length;
 
-        auto buffer = arena.allocate<char>(string.length);
+        auto buffer = arena->allocate<char>(string.length);
 
         usize position = 0;
 
@@ -277,15 +348,17 @@ struct String {
     }
 
     template <typename ...A>
-    auto format(ref<Arena> arena, A... args) -> String {
-        Arena cstr_arena{length + 1};
-        auto format_cstr = cstr(cstr_arena);
+    auto format(ptr<Arena> arena, A... args) -> String {
+        auto cstr_arena = Arena::create(length + 1);
+        defer cleanup = [&cstr_arena](){ cstr_arena.destroy(); };
 
-        String string;
+        auto format_cstr = cstr(&cstr_arena);
+
+        auto string = String::create();
 
         string.length = snprintf(NULL, 0, format_cstr, args...);
 
-        auto buffer = arena.allocate<char>(string.length + 1);
+        auto buffer = arena->allocate<char>(string.length + 1);
 
         snprintf(buffer, string.length + 1, format_cstr, args...);
 
@@ -293,7 +366,6 @@ struct String {
 
         return string;
     }
-
 
     auto substring(String other) -> bool {
         if (other.length > length)
@@ -330,8 +402,8 @@ struct String {
         return { data + n, length - n };
     }
     
-    auto cstr(ref<Arena> arena) -> ptr<imm<char>> {
-        auto s = arena.allocate<char>(length + 1);
+    auto cstr(ptr<Arena> arena) -> ptr<imm<char>> {
+        auto s = arena->allocate<char>(length + 1);
 
         memcpy(s, data, length);
 
@@ -340,10 +412,11 @@ struct String {
         return s;
     }
 
-    static auto from_file(ref<Arena> arena, String path) -> String {
-        Arena scratch{path.length + 1};
+    static auto from_file(ptr<Arena> arena, String path) -> String {
+        auto scratch = Arena::create(path.length + 1);
+        defer cleanup = [&scratch](){ scratch.destroy(); };
 
-        auto path_cstr = path.cstr(scratch);
+        auto path_cstr = path.cstr(&scratch);
 
         auto file = fopen(path_cstr, "rb");
 
@@ -351,13 +424,13 @@ struct String {
 
         assert(fseek(file, 0, SEEK_END) >= 0);
 
-        String string;
+        auto string = String::create();
 
         string.length = ftell(file);
 
         assert(fseek(file, 0, SEEK_SET) >= 0);
 
-        auto buffer = arena.allocate<char>(string.length);
+        auto buffer = arena->allocate<char>(string.length);
 
         fread(buffer, 1, string.length, file);
 
@@ -372,13 +445,14 @@ struct String {
 };
 
 struct String_Builder {
-    ref<Arena> arena;
+    ptr<Arena> arena;
     ptr<char> end;
     String result;
 
-    String_Builder(ref<Arena> a): arena{a}, result{} {
-        result.data = static_cast<ptr<char>>(a.end());
-        end = static_cast<ptr<char>>(a.end());
+    static auto create(ptr<Arena> a) -> String_Builder {
+        auto start = static_cast<ptr<char>>(a->end());
+
+        return { a, start, { start, 0 } };
     }
 
     auto grow(usize n) -> void {
@@ -387,7 +461,7 @@ struct String_Builder {
     }
 
     auto push(String string) -> void {
-        auto space = arena.allocate<char>(string.length);
+        auto space = arena->allocate<char>(string.length);
 
         assert(end == space);
 
@@ -397,29 +471,16 @@ struct String_Builder {
     }
 
     template <typename ...A>
-    auto append(A... args) -> ref<String_Builder> {
+    auto append(A... args) -> void {
         (push(args), ...);
-
-        return *this;
     }
 
     auto put(char c) -> void {
-        auto space = arena.make<char>(c);
+        auto space = arena->make<char>(c);
 
         assert(end == space);
 
         grow(1);
-    }
-};
-
-template <typename F>
-struct defer {
-    F callback;
-
-    defer(F f): callback{f} {}
-
-    ~defer() {
-        callback();
     }
 };
 
@@ -433,12 +494,13 @@ auto println(String string) -> void {
 }
 
 auto println(ptr<imm<char>> s) -> void {
-    println(String{s});
+    println(String::create(s));
 }
 
 template <typename ...A>
 auto println(ptr<imm<char>> format, A... args) -> void {
-    Arena arena{static_cast<usize>(snprintf(NULL, 0, format, args...)) + 1};
+    auto arena = Arena::create(static_cast<usize>(snprintf(NULL, 0, format, args...)) + 1);
+    defer cleanup = [&arena](){ arena.destroy(); };
 
-    println(String{format}.format(arena, args...));
+    println(String::create(format).format(&arena, args...));
 }
