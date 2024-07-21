@@ -37,9 +37,9 @@ auto run_command(A... args) -> void {
     (strings.append(String::create(args)), ...);
     println(String::create(" ").join(&arena, strings.data));
 
-    String bin = (String::create(cmd[0]).left(2) == "./")
-        ? absolute_path(&arena, String::create(cmd[0]))
-        : String::create(cmd[0]);
+    String bin = (strings[0].left(2) == "./")
+        ? absolute_path(&arena, strings[0])
+        : strings[0];
 
     pid_t pid = fork();
 

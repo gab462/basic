@@ -18,7 +18,8 @@ auto test_arena(ptr<Arena> arena) -> void {
 }
 
 auto test_vector(ptr<Arena> arena) -> void {
-    auto vec = Vector<i32>::create(arena, 1, 2, 3, 4);
+    auto vec = Vector<i32>::create(arena, 4);
+    vec.append(1, 2, 3, 4);
     assert(vec[0] == 1);
     assert(vec[3] == 4);
     assert(vec.data.length == 4);

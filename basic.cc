@@ -183,10 +183,10 @@ struct Vector {
         return {};
     }
 
-    template <typename ...A>
-    static auto create(ptr<Arena> arena, A... args) -> Vector<T> {
-        static constexpr auto n = sizeof...(args);
-        return { { n, n, arena->allocate<T>(n, args...) } };
+    static auto create(ptr<Arena> arena, usize n) -> Vector<T> {
+        auto vector = Vector::create();
+        vector.reserve(arena, n);
+        return vector;
     }
 
     auto reserve(ptr<Arena> arena, usize n) -> void {
