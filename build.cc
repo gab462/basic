@@ -27,26 +27,21 @@ auto run_command(A... args) -> void {
     auto arena = Arena::create(1024);
     defer cleanup = [&arena](){ arena.destroy(); };
 
-    auto cmd_builder = Vector_Builder<ptr<imm<char>>>::create(&arena);
-    cmd_builder.append(args...);
-    cmd_builder.append(static_cast<ptr<char>>(0));
+    auto cmd = make_array<ptr<imm<char>>>(args..., static_cast<ptr<char>>(0));
+    auto strings = make_array<String>(String::create(args)...);
 
-    auto cmd = cmd_builder.result;
-
-    auto strings = Array<String, sizeof...(args)>::create();
-    (strings.append(String::create(args)), ...);
     println(String::create(" ").join(&arena, strings.data));
 
-    String bin = (strings[0].left(2) == "./")
-        ? absolute_path(&arena, strings[0])
-        : strings[0];
+    auto bin = (strings[0].left(2) == "./")
+        ? absolute_path(&arena, strings[0]).cstr(&arena)
+        : cmd[0];
 
     pid_t pid = fork();
 
     assert(pid >= 0);
 
     if (pid == 0) {
-        execvp(const_cast<ptr<char>>(bin.cstr(&arena)), const_cast<ptr<imm<ptr<char>>>>(cmd.data.data));
+        execvp(const_cast<ptr<char>>(bin), const_cast<ptr<imm<ptr<char>>>>(cmd.data.data));
         assert(false);
     } else {
         int status;

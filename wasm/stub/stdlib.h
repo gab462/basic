@@ -18,7 +18,8 @@ auto free(void*) -> void {
 }
 
 auto malloc(size_t n) -> void* {
-    assert(_heap_depth++ < _max_heap_depth);
+    if (_heap_depth++ >= _max_heap_depth)
+        return NULL;
 
     free(nullptr); // Align and set _heap_position
 
