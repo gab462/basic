@@ -23,7 +23,7 @@ using usize = size_t;
 
 // https://groups.google.com/a/isocpp.org/g/std-proposals/c/xDQR3y5uTZ0/m/VKmOiLRzHqkJ
 template <typename T> using ptr = T*;
-// template <typename T> using ref = T&;
+template <typename T> using ref = T&;
 template <typename T> using imm = T const;
 template <typename T, usize N> using buf = T[N];
 template <typename T, typename ...A> using func = auto (*) (A...) -> T;
@@ -106,21 +106,21 @@ struct Arena {
 template <typename T>
 struct Container {
     usize length;
-    usize position;
+    usize tail;
     ptr<T> data;
 
-    auto push(T value) -> void {
-        assert(position < length);
+    auto append(T value) -> void {
+        assert(tail < length);
 
-        data[position++] = value;
+        data[tail++] = value;
     }
 
     template <typename ...A>
     auto append(A... args) -> void {
-        (push(args), ...);
+        (append(args), ...);
     }
 
-    auto operator[] (usize n) -> T& {
+    auto operator[] (usize n) -> ref<T> {
         return data[n];
     }
 
@@ -129,44 +129,53 @@ struct Container {
     }
 
     auto end() -> ptr<T> {
-        return &data[position];
+        return &data[tail];
     }
 };
 
 template <typename T, usize N>
 struct Array {
-    Container<T> data;
-    buf<T, N> buffer;
+    buf<T, N> data;
+    usize tail;
 
     static auto create() -> Array<T, N> {
-        Array<T, N> created{ { N, 0, nullptr }, {} };
-        created.data.data = created.buffer;
-        return created;
+        return {};
     }
 
     template <typename ...A>
     static auto create(A... args) -> Array<T, N> {
-        Array<T, N> created{ { N, sizeof...(args), nullptr }, { args... } };
-        created.data.data = created.buffer;
-        return created;
+        return { { args... }, sizeof...(args) };
     }
 
-    // FIXME: reduce duplication
+    auto append(T obj) -> void {
+        assert(tail <= N);
+
+        data[tail++] = obj;
+    }
+
     template <typename ...A>
     auto append(A... args) -> void {
-        data.append(args...);
+        (append(args), ...);
     }
 
-    auto operator[] (usize n) -> T& {
+    auto view() -> Container<T> {
+        return { N, tail, data };
+    }
+
+    auto size() -> usize {
+        return N;
+    }
+
+    auto operator[] (usize n) -> ref<T> {
         return data[n];
     }
 
     auto begin() -> ptr<T> {
-        return data.begin();
+        return &data[0];
     }
 
     auto end() -> ptr<T> {
-        return data.end();
+        return &data[tail];
     }
 };
 
@@ -175,9 +184,46 @@ auto make_array(A... args) -> Array<T, sizeof...(args)> {
     return Array<T, sizeof...(args)>::create(args...);
 }
 
+template <typename T, usize N>
+struct Stack {
+    buf<T, N> data;
+    usize tail;
+
+    auto push(T obj) -> void {
+        assert(tail <= N);
+
+        data[tail++] = obj;
+    }
+
+    template <typename ...A>
+    auto push(A... args) -> void {
+        (push(args), ...);
+    }
+
+    auto pop() -> T {
+        assert(tail > 0);
+
+        return data[--tail];
+    }
+
+    auto size() -> usize {
+        return tail;
+    }
+
+    auto begin() -> T* {
+        return &data[0];
+    }
+
+    auto end() -> T* {
+        return &data[tail];
+    }
+};
+
 template <typename T>
 struct Vector {
-    Container<T> data;
+    usize tail;
+    usize length;
+    ptr<T> data;
 
     static auto create() -> Vector<T> {
         return {};
@@ -190,28 +236,42 @@ struct Vector {
     }
 
     auto reserve(ptr<Arena> arena, usize n) -> void {
-        assert(data.data == nullptr);
+        assert(data == nullptr);
 
-        data.data = arena->allocate<T>(n);
-        data.length = n;
+        data = arena->allocate<T>(n);
+        length = n;
     }
 
-    // FIXME: reduce duplication
+    template <typename ...A>
+    auto append(T obj) -> void {
+        assert(tail <= length);
+
+        data[tail++] = obj;
+    }
+
     template <typename ...A>
     auto append(A... args) -> void {
-        data.append(args...);
+        (append(args), ...);
     }
 
-    auto operator[] (usize n) -> T& {
+    auto view() -> Container<T> {
+        return { length, tail, data };
+    }
+
+    auto size() -> usize {
+        return length;
+    }
+
+    auto operator[] (usize n) -> ref<T> {
         return data[n];
     }
 
     auto begin() -> ptr<T> {
-        return data.begin();
+        return &data[0];
     }
 
     auto end() -> ptr<T> {
-        return data.end();
+        return &data[tail];
     }
 };
 
@@ -226,12 +286,12 @@ struct Vector_Builder {
 
         auto start = static_cast<ptr<T>>(a->end());
 
-        return { a, start, { { 0, 0, start } } };
+        return { a, start, { 0, 0, start } };
     }
 
     auto grow(usize n) -> void {
-        result.data.length += n;
-        result.data.position += n;
+        result.length += n;
+        result.tail += n;
         end += n;
     }
 

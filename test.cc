@@ -39,20 +39,20 @@ auto test_vector(ptr<Arena> arena) -> void {
     vec.append(1, 2, 3, 4);
     assert(vec[0] == 1);
     assert(vec[3] == 4);
-    assert(vec.data.length == 4);
-    assert(vec.data.position == 4);
+    assert(vec.length == 4);
+    assert(vec.tail == 4);
 
     auto vec1 = Vector<i32>::create();
 
     vec1.reserve(arena, 4);
-    assert(vec1.data.length == 4);
-    assert(vec1.data.position == 0);
+    assert(vec1.length == 4);
+    assert(vec1.tail == 0);
 
     vec1.append(1, 2);
     assert(vec1[0] == 1);
     assert(vec1[1] == 2);
-    assert(vec1.data.length == 4);
-    assert(vec1.data.position == 2);
+    assert(vec1.length == 4);
+    assert(vec1.tail == 2);
 
     auto vec3 = Vector_Builder<i32>::create(arena);
     vec3.append(1, 2);
@@ -61,8 +61,8 @@ auto test_vector(ptr<Arena> arena) -> void {
 
     assert(res[0] == 1);
     assert(res[3] == 4);
-    assert(res.data.length == 4);
-    assert(res.data.position == 4);
+    assert(res.length == 4);
+    assert(res.tail == 4);
 }
 
 auto test_array() -> void {
@@ -70,8 +70,8 @@ auto test_array() -> void {
 
     assert(vec2[0] == 5);
     assert(vec2[3] == 8);
-    assert(vec2.data.length == 4);
-    assert(vec2.data.position == 4);
+    assert(vec2.size() == 4);
+    assert(vec2.tail == 4);
 }
 
 auto test_string(ptr<Arena> arena) -> void {
@@ -82,7 +82,7 @@ auto test_string(ptr<Arena> arena) -> void {
     assert(split[0] == "Hello");
     assert(split[2] == "Test");
 
-    assert(String::create(", ").join(arena, make_array<String>(String::create("Hello"), String::create("World!"), String::create("Test!")).data)
+    assert(String::create(", ").join(arena, make_array<String>(String::create("Hello"), String::create("World!"), String::create("Test!")).view())
             == "Hello, World!, Test!");
 
     assert(String::create("Hello World").substring(String::create("Hello")));
@@ -116,7 +116,7 @@ auto test_defer() -> void {
 
     test_defer_aux(&arr);
 
-    assert(arr.data.position == 2);
+    assert(arr.tail == 2);
     assert(arr[0] == 1);
     assert(arr[1] == 2);
 }

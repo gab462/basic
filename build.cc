@@ -19,7 +19,7 @@ auto absolute_path(ptr<Arena> arena, String file) -> String {
     assert(getcwd(path, 256) != NULL);
 
     return String::create("")
-        .join(arena, make_array<String>(String::create(path), file.chop_left(1)).data);
+        .join(arena, make_array<String>(String::create(path), file.chop_left(1)).view());
 }
 
 template <typename ...A>
@@ -30,7 +30,7 @@ auto run_command(A... args) -> void {
     auto cmd = make_array<ptr<imm<char>>>(args..., static_cast<ptr<char>>(0));
     auto strings = make_array<String>(String::create(args)...);
 
-    println(String::create(" ").join(&arena, strings.data));
+    println(String::create(" ").join(&arena, strings.view()));
 
     auto bin = (strings[0].left(2) == "./")
         ? absolute_path(&arena, strings[0]).cstr(&arena)
@@ -41,7 +41,7 @@ auto run_command(A... args) -> void {
     assert(pid >= 0);
 
     if (pid == 0) {
-        execvp(const_cast<ptr<char>>(bin), const_cast<ptr<imm<ptr<char>>>>(cmd.data.data));
+        execvp(const_cast<ptr<char>>(bin), const_cast<ptr<imm<ptr<char>>>>(cmd.data));
         assert(false);
     } else {
         int status;
