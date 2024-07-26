@@ -74,6 +74,39 @@ auto test_array() -> void {
     assert(vec2.tail == 4);
 }
 
+auto test_stack() -> void {
+    auto s = Stack<i32, 3>::create();
+
+    s.push(1);
+    assert(s.tail == 1);
+    assert(s.data[0] == 1);
+    s.push(2);
+    assert(s.tail == 2);
+    assert(s.data[1] == 2);
+    assert(s.pop() == 2);
+    assert(s.tail == 1);
+}
+
+auto test_queue() -> void {
+    auto s = Queue<i32, 3>::create();
+
+    s.put(1);
+    assert(s.head == 0);
+    assert(s.tail == 1);
+    assert(s.data[0] == 1);
+    s.put(2, 3);
+    assert(s.tail == 0);
+    assert(s.data[1] == 2);
+    assert(s.data[2] == 3);
+    assert(s.get() == 1);
+    assert(s.tail == 0);
+    assert(s.head == 1);
+    s.put(4);
+    assert(s.data[0] == 4);
+    assert(s.tail == 1);
+    assert(s.head == 1);
+}
+
 auto test_string(ptr<Arena> arena) -> void {
     assert(String::create("Hello,").append(arena, String::create("World!")) == "Hello,World!");
 
@@ -128,6 +161,8 @@ auto test_all() -> void {
     test_arena(&arena);
     test_vector(&arena);
     test_array();
+    test_stack();
+    test_queue();
     test_string(&arena);
     test_defer();
 }

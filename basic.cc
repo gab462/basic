@@ -148,7 +148,7 @@ struct Array {
     }
 
     auto append(T obj) -> void {
-        assert(tail <= N);
+        assert(tail < N);
 
         data[tail++] = obj;
     }
@@ -189,8 +189,12 @@ struct Stack {
     buf<T, N> data;
     usize tail;
 
+    static auto create() -> Stack<T, N> {
+        return {};
+    }
+
     auto push(T obj) -> void {
-        assert(tail <= N);
+        assert(tail < N);
 
         data[tail++] = obj;
     }
@@ -208,6 +212,53 @@ struct Stack {
 
     auto size() -> usize {
         return tail;
+    }
+
+    auto begin() -> T* {
+        return &data[0];
+    }
+
+    auto end() -> T* {
+        return &data[tail];
+    }
+};
+
+template <typename T, usize N>
+struct Queue {
+    buf<T, N> data;
+    usize head;
+    usize tail;
+    usize count;
+
+    static auto create() -> Queue<T, N> {
+        return {};
+    }
+
+    auto put(T obj) -> void {
+        assert(count < N);
+
+        data[tail++] = obj;
+        tail %= N;
+        ++count;
+    }
+
+    template <typename ...A>
+    auto put(A... args) -> void {
+        (put(args), ...);
+    }
+
+    auto get() -> T {
+        assert(count > 0);
+
+        auto idx = head++;
+        head %= N;
+        --count;
+
+        return data[idx];
+    }
+
+    auto size() -> usize {
+        return count;
     }
 
     auto begin() -> T* {
@@ -244,7 +295,7 @@ struct Vector {
 
     template <typename ...A>
     auto append(T obj) -> void {
-        assert(tail <= length);
+        assert(tail < length);
 
         data[tail++] = obj;
     }
