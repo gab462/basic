@@ -77,7 +77,7 @@ struct Arena {
     auto make(A... args) -> ptr<T> {
         align<T>();
 
-        assert(position + sizeof(T) <= capacity);
+        assert(position + sizeof(T) < capacity);
 
         auto pointer = new(end()) T{args...};
 
