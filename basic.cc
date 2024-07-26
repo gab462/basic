@@ -214,11 +214,11 @@ struct Stack {
         return tail;
     }
 
-    auto begin() -> T* {
+    auto begin() -> ptr<T> {
         return &data[0];
     }
 
-    auto end() -> T* {
+    auto end() -> ptr<T> {
         return &data[tail];
     }
 };
@@ -261,11 +261,11 @@ struct Queue {
         return count;
     }
 
-    auto begin() -> T* {
+    auto begin() -> ptr<T> {
         return &data[0];
     }
 
-    auto end() -> T* {
+    auto end() -> ptr<T> {
         return &data[tail];
     }
 };
